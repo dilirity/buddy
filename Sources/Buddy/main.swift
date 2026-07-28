@@ -33,6 +33,15 @@ if CommandLine.arguments.contains("--check") {
     exit(ok ? 0 : 1)
 }
 
+BuddyPaths.bootstrap()
+
+// Single instance: autostart + Raycast/Spotlight launches must not spawn twins.
+let instanceLock = open(BuddyPaths.home.appendingPathComponent("app.lock").path,
+                        O_CREAT | O_RDWR, 0o644)
+if instanceLock < 0 || flock(instanceLock, LOCK_EX | LOCK_NB) != 0 {
+    exit(0)
+}
+
 let app = NSApplication.shared
 let delegate = AppDelegate()
 app.delegate = delegate

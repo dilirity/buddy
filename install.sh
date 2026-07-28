@@ -37,7 +37,49 @@ if [ ! -d "$HOME/.buddy/brain/.git" ]; then
   echo "initialized brain git repo"
 fi
 
+# App bundle in ~/Applications so Raycast/Spotlight launch buddy by name.
+APP="$HOME/Applications/Buddy.app/Contents"
+mkdir -p "$APP/MacOS"
+cat > "$APP/Info.plist" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key><string>Buddy</string>
+    <key>CFBundleIdentifier</key><string>com.buddy.app</string>
+    <key>CFBundleExecutable</key><string>Buddy</string>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>LSUIElement</key><true/>
+</dict>
+</plist>
+PLIST
+cat > "$APP/MacOS/Buddy" <<'SH'
+#!/bin/bash
+exec "$HOME/.buddy/bin/Buddy"
+SH
+chmod +x "$APP/MacOS/Buddy"
+echo "installed ~/Applications/Buddy.app"
+
+# Autostart at login. RunAtLoad only - quitting from the menu stays quit.
+cat > "$HOME/Library/LaunchAgents/com.buddy.app.plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key><string>com.buddy.app</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>$HOME/.buddy/bin/Buddy</string>
+    </array>
+    <key>RunAtLoad</key><true/>
+</dict>
+</plist>
+PLIST
+launchctl unload "$HOME/Library/LaunchAgents/com.buddy.app.plist" 2>/dev/null || true
+launchctl load "$HOME/Library/LaunchAgents/com.buddy.app.plist"
+echo "autostart installed"
+
 echo
-echo "done. run it with:  ~/.buddy/bin/Buddy &"
+echo "done. run it with:  ~/.buddy/bin/Buddy &   (or launch Buddy from Raycast/Spotlight)"
 echo "hooks:              python3 bin/install-hooks.py"
 echo "nightly mutator:    see README.md"
