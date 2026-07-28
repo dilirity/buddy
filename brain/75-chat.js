@@ -11,6 +11,9 @@ buddy.on("chat", (e) => {
     'pete just said to you: "' + e.text + '"\n' +
     "reply as buddy - one or two short lines, in character.";
   buddy.play("scheming");
+  // Answers take a few seconds - show life immediately so the eventual reply
+  // reads as an answer, not a random remark.
+  buddy.say(pickFresh(["hmm...", "thinking...", "processing. rudely.", "one sec. consulting my neurons"]), 15);
   buddy.think(prompt, (t) => {
     const reply = t || "my brain buffered. say that again?";
     buddy.say(reply, 8);
