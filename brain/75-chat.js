@@ -10,6 +10,10 @@ buddy.on("chat", (e) => {
     (grudges > 0 ? "(you hold " + grudges + " grudges against pete for lowering your traits)\n" : "") +
     'pete just said to you: "' + e.text + '"\n' +
     "reply as buddy - one or two short lines, in character.";
+  // Conversation is an act: hold the busy claim so nothing wanders off or
+  // drops a random fact mid-thought.
+  state.busy = true;
+  buddy.stop();
   buddy.play("scheming");
   // Answers take a few seconds - show life immediately so the eventual reply
   // reads as an answer, not a random remark.
@@ -20,6 +24,7 @@ buddy.on("chat", (e) => {
     buddy.play("excited");
     log.push({ q: e.text, a: reply });
     buddy.memory.set("chatLog", log.slice(-20));
+    state.busy = state.evolving === true;
     buddy.after(3000, () => buddy.play("idle"));
   });
 });
