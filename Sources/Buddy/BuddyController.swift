@@ -38,8 +38,9 @@ final class BuddyController: NSObject, SpriteViewDelegate {
     private var evolveItem: NSMenuItem?
     private var evolveProcess: Process?
     private var evolveStartSignature = ""
+    private var externalEvolveActive = false
 
-    var evolving: Bool { evolveProcess != nil }
+    var evolving: Bool { evolveProcess != nil || externalEvolveActive }
 
     var testMode: Bool {
         if let until = testModeUntil, until > Date() { return true }
@@ -547,8 +548,7 @@ final class BuddyController: NSObject, SpriteViewDelegate {
             return
         }
         evolveProcess = p
-        evolveItem?.title = "Evolving…"
-        evolveItem?.action = nil
+        beginEvolveUI()
         buddyLog("evolution started")
         brain.emit("evolveStart")
         // A hung mutation must not pin the menu on "Evolving…" forever.
@@ -559,10 +559,18 @@ final class BuddyController: NSObject, SpriteViewDelegate {
         }
     }
 
+    private func beginEvolveUI() {
+        evolveItem?.title = "Evolving…"
+        evolveItem?.action = nil
+        view.dragEnabled = false
+    }
+
     private func evolveFinished() {
         evolveProcess = nil
+        externalEvolveActive = false
         evolveItem?.title = "Evolve Now"
         evolveItem?.action = #selector(menuEvolveNow)
+        view.dragEnabled = true
         let changed = Senses.currentBrainSignature() != evolveStartSignature
         buddyLog("evolution finished, changed: \(changed)")
         if changed {
@@ -570,6 +578,22 @@ final class BuddyController: NSObject, SpriteViewDelegate {
         }
         senses.resync()
         brain.emit("evolveEnd", ["changed": changed])
+    }
+
+    // The nightly mutation runs via launchd, not through this app - the
+    // evolving.lock (taken by run.sh) is how we notice and run the same
+    // ritual: anim, paused hot-reload, locked dragging, proper ending.
+    func evolveLockChanged(exists: Bool) {
+        if exists {
+            guard !evolving else { return }
+            externalEvolveActive = true
+            evolveStartSignature = Senses.currentBrainSignature()
+            beginEvolveUI()
+            buddyLog("external evolution detected")
+            brain.emit("evolveStart")
+        } else if externalEvolveActive {
+            evolveFinished()
+        }
     }
 
     @objc private func menuRunTest(_ sender: NSMenuItem) {

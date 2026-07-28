@@ -27,6 +27,8 @@ protocol SpriteViewDelegate: AnyObject {
 
 final class SpriteView: NSView {
     weak var delegate: SpriteViewDelegate?
+    // Dropped during evolution: buddy cannot be carried mid-brain-surgery.
+    var dragEnabled = true
     private var dragging = false
     private var downPointInWindow: NSPoint = .zero
     private let sprite = CALayer()
@@ -86,7 +88,7 @@ final class SpriteView: NSView {
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard let win = window else { return }
+        guard dragEnabled, let win = window else { return }
         if !dragging {
             let d = hypot(event.locationInWindow.x - downPointInWindow.x,
                           event.locationInWindow.y - downPointInWindow.y)

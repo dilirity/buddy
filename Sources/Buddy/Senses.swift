@@ -23,6 +23,7 @@ final class Senses {
         brainSignature = Self.currentBrainSignature()
 
         schedule(0.5) { [weak self] in self?.pollEvents() }
+        schedule(2.0) { [weak self] in self?.pollEvolveLock() }
         schedule(2.0) { [weak self] in self?.pollTraits() }
         schedule(2.0) { [weak self] in self?.pollBrain() }
         schedule(5.0) { [weak self] in self?.pollIdle() }
@@ -93,6 +94,15 @@ final class Senses {
     func resync() {
         brainSignature = Self.currentBrainSignature()
         traitsSnapshot = Traits.values()
+    }
+
+    private var evolveLockSeen = false
+
+    private func pollEvolveLock() {
+        let exists = FileManager.default.fileExists(atPath: BuddyPaths.home.appendingPathComponent("evolving.lock").path)
+        guard exists != evolveLockSeen else { return }
+        evolveLockSeen = exists
+        controller?.evolveLockChanged(exists: exists)
     }
 
     private func pollTraits() {

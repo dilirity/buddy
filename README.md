@@ -37,6 +37,8 @@ Grant Accessibility/Input Monitoring permission when macOS asks - needed for cur
 
 ## Dev
 
+Rule one: if `~/.buddy/evolving.lock` exists, an evolution is in progress - do not edit `~/.buddy/brain` or restart the app until it clears. The lock is taken by `mutator/run.sh` (nightly launchd or Evolve Now) and doubles as the app's signal to run the evolve ritual and pause hot-reloading.
+
 ```bash
 swift run             # runs against ~/.buddy/brain (seeds it from ./brain on first run)
 swift run Buddy --check   # headless brain validation

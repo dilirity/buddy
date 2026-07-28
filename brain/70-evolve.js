@@ -18,6 +18,11 @@ buddy.on("evolveStart", () => {
   });
 });
 
+// Pokes during surgery get a firm but polite no.
+buddy.on("poked", () => {
+  if (state.evolving) sayLine("evolveBusy", 3);
+});
+
 buddy.on("evolveEnd", (e) => {
   state.busy = false;
   state.evolving = false;

@@ -7,6 +7,15 @@ export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin"
 BRAIN="$HOME/.buddy/brain"
 PROMPT="$(dirname "$0")/prompt.md"
 LOG="$HOME/.buddy/mutator.log"
+LOCK="$HOME/.buddy/evolving.lock"
+
+# One evolution at a time; the app watches this lock to run the ritual
+# (and to pause brain hot-reloading) for nightly runs too.
+if ! mkdir "$LOCK" 2>/dev/null; then
+  echo "=== $(date) evolution already in progress, skipping ===" >> "$LOG"
+  exit 0
+fi
+trap 'rmdir "$LOCK" 2>/dev/null' EXIT
 
 cd "$BRAIN" || exit 1
 echo "=== mutation $(date) ===" >> "$LOG"

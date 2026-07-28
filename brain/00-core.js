@@ -60,7 +60,8 @@ globalThis.runAct = function (steps, done) {
   }
   function finish() {
     clearBareProp();
-    state.busy = false;
+    // An act finishing must not release the busy claim the evolve ritual holds.
+    state.busy = state.evolving === true;
     if (done) done();
   }
   function next() {
