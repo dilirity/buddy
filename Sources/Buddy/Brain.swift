@@ -270,7 +270,7 @@ final class Brain {
     private func addTimer(ms: Double, repeats: Bool, fn: JSValue) -> Int {
         let id = nextTimerID
         nextTimerID += 1
-        let t = Timer.scheduledTimer(withTimeInterval: max(0.05, ms / 1000), repeats: repeats) { [weak self] _ in
+        let t = commonTimer(max(0.05, ms / 1000), repeats: repeats) { [weak self] _ in
             if !repeats {
                 self?.timers.removeValue(forKey: id)
             }

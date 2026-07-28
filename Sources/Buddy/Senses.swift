@@ -44,7 +44,7 @@ final class Senses {
     }
 
     private func schedule(_ interval: TimeInterval, _ fn: @escaping () -> Void) {
-        let t = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { _ in fn() }
+        let t = commonTimer(interval, repeats: true) { _ in fn() }
         timers.append(t)
     }
 

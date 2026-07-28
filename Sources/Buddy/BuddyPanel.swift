@@ -158,7 +158,7 @@ final class SpeechBubble {
         panel.setContentSize(NSSize(width: textW + padding * 2, height: textH + padding * 2))
         reposition(near: spriteFrame)
         panel.orderFrontRegardless()
-        hideTimer = Timer.scheduledTimer(withTimeInterval: max(1.5, seconds), repeats: false) { [weak self] _ in
+        hideTimer = commonTimer(max(1.5, seconds), repeats: false) { [weak self] _ in
             self?.hide()
         }
     }

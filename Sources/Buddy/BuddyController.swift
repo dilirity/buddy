@@ -84,7 +84,7 @@ final class BuddyController: NSObject, SpriteViewDelegate {
         // Watchdog: transient anims (excited, scheming, ...) must not stick.
         // Behaviors are supposed to return to idle themselves; when their timer
         // chain gets interrupted (freeze, reload), this catches it.
-        Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
+        commonTimer(10, repeats: true) { [weak self] _ in
             guard let self, !self.held, !self.isFrozen else { return }
             let transient = !["idle", "walk", "sleep", "evolve"].contains(self.currentAnim)
             if transient && Date().timeIntervalSince(self.lastAnimChange) > 15 {
@@ -132,7 +132,7 @@ final class BuddyController: NSObject, SpriteViewDelegate {
         // Transitions must terminate even if someone marks them looping.
         let oneShot = !anim.loops || name.hasSuffix(".in") || name.hasSuffix(".out")
         guard anim.frames.count > 1 || oneShot else { animTimer = nil; return }
-        animTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / max(1, anim.fps), repeats: true) { [weak self] t in
+        animTimer = commonTimer(1.0 / max(1, anim.fps), repeats: true) { [weak self] t in
             guard let self, let anim = self.sheet.anims[self.currentAnim] else { t.invalidate(); return }
             self.frameIndex += 1
             if self.frameIndex >= anim.frames.count {
@@ -202,7 +202,7 @@ final class BuddyController: NSObject, SpriteViewDelegate {
 
     private func startMoveTimer() {
         guard moveTimer == nil else { return }
-        moveTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60, repeats: true) { [weak self] _ in
+        moveTimer = commonTimer(1.0 / 60, repeats: true) { [weak self] _ in
             self?.stepMove()
         }
     }
@@ -298,7 +298,7 @@ final class BuddyController: NSObject, SpriteViewDelegate {
         guard allowDisruptive() else { return false }
         grabTimer?.invalidate()
         let end = Date().addingTimeInterval(min(max(seconds, 0.5), 8))
-        grabTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) { [weak self] t in
+        grabTimer = commonTimer(1.0 / 30, repeats: true) { [weak self] t in
             guard let self, Date() < end, !self.isFrozen, !self.held else {
                 t.invalidate()
                 self?.grabTimer = nil
@@ -350,7 +350,7 @@ final class BuddyController: NSObject, SpriteViewDelegate {
         layerRestoreTimer = nil
         if behind {
             panel.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.normalWindow)) - 1)
-            layerRestoreTimer = Timer.scheduledTimer(withTimeInterval: 120, repeats: false) { [weak self] _ in
+            layerRestoreTimer = commonTimer(120, repeats: false) { [weak self] _ in
                 self?.setLayer(behind: false)
             }
         } else {
@@ -365,7 +365,7 @@ final class BuddyController: NSObject, SpriteViewDelegate {
         opacityRestoreTimer?.invalidate()
         opacityRestoreTimer = nil
         if v < 1.0 {
-            opacityRestoreTimer = Timer.scheduledTimer(withTimeInterval: 90, repeats: false) { [weak self] _ in
+            opacityRestoreTimer = commonTimer(90, repeats: false) { [weak self] _ in
                 self?.panel.alphaValue = 1.0
             }
         }
@@ -392,7 +392,7 @@ final class BuddyController: NSObject, SpriteViewDelegate {
         pendingAnim = nil
         play("sleep")
         unfreezeTimer?.invalidate()
-        unfreezeTimer = Timer.scheduledTimer(withTimeInterval: TimeInterval(minutes * 60), repeats: false) { [weak self] _ in
+        unfreezeTimer = commonTimer(TimeInterval(minutes * 60), repeats: false) { [weak self] _ in
             self?.unfreeze()
         }
         buddyLog("frozen for \(minutes) min")
@@ -555,7 +555,7 @@ final class BuddyController: NSObject, SpriteViewDelegate {
         buddyLog("evolution started")
         brain.emit("evolveStart")
         // A hung mutation must not pin the menu on "Evolving…" forever.
-        Timer.scheduledTimer(withTimeInterval: 900, repeats: false) { [weak self] _ in
+        commonTimer(900, repeats: false) { [weak self] _ in
             guard let self, let running = self.evolveProcess, running === p else { return }
             buddyLog("evolution timed out, terminating")
             running.terminate()

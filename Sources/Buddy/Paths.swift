@@ -50,6 +50,16 @@ enum BuddyPaths {
     """
 }
 
+// All buddy timers go through this: scheduled in .common run loop modes so
+// animation, movement, and brain ticks keep running while a menu is open
+// (default-mode timers pause during menu tracking - frozen buddy).
+@discardableResult
+func commonTimer(_ interval: TimeInterval, repeats: Bool, _ block: @escaping (Timer) -> Void) -> Timer {
+    let t = Timer(timeInterval: interval, repeats: repeats, block: block)
+    RunLoop.main.add(t, forMode: .common)
+    return t
+}
+
 func buddyLog(_ msg: String) {
     let line = "\(Date()) \(msg)\n"
     if let h = FileHandle(forWritingAtPath: BuddyPaths.log.path) {
