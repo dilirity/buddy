@@ -306,6 +306,67 @@ final class BuddyController: NSObject, SpriteViewDelegate {
         return true
     }
 
+    // MARK: - Window awareness + hiding (granted wishes)
+
+    private var layerRestoreTimer: Timer?
+    private var opacityRestoreTimer: Timer?
+
+    // On-screen normal windows of other apps, Cocoa coords.
+    func windowList() -> [[String: Any]] {
+        guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
+                                                    kCGNullWindowID) as? [[String: Any]] else { return [] }
+        let myPID = ProcessInfo.processInfo.processIdentifier
+        let screenH = NSScreen.screens.first?.frame.height ?? 0
+        var out: [[String: Any]] = []
+        for w in list {
+            guard (w[kCGWindowLayer as String] as? NSNumber)?.intValue == 0,
+                  (w[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value != myPID,
+                  let b = w[kCGWindowBounds as String] as? [String: Any],
+                  let x = (b["X"] as? NSNumber)?.doubleValue,
+                  let y = (b["Y"] as? NSNumber)?.doubleValue,
+                  let width = (b["Width"] as? NSNumber)?.doubleValue,
+                  let height = (b["Height"] as? NSNumber)?.doubleValue,
+                  width > 60, height > 60 else { continue }
+            out.append([
+                "x": x,
+                "y": Double(screenH) - y - height,
+                "w": width,
+                "h": height,
+                "app": w[kCGWindowOwnerName as String] as? String ?? "?",
+            ])
+        }
+        return out
+    }
+
+    // "behind" drops buddy under normal app windows (real hiding). The shell
+    // always restores front - after 120s, on drag, on freeze - so buddy can
+    // never be lost back there. That guarantee is native, not brain-trusted.
+    func setLayer(behind: Bool) {
+        layerRestoreTimer?.invalidate()
+        layerRestoreTimer = nil
+        if behind {
+            panel.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.normalWindow)) - 1)
+            layerRestoreTimer = Timer.scheduledTimer(withTimeInterval: 120, repeats: false) { [weak self] _ in
+                self?.setLayer(behind: false)
+            }
+        } else {
+            panel.level = .screenSaver
+        }
+    }
+
+    // Clamped so buddy can never turn fully invisible; auto-restores.
+    func setOpacity(_ value: Double) {
+        let v = max(0.15, min(1.0, value))
+        panel.alphaValue = v
+        opacityRestoreTimer?.invalidate()
+        opacityRestoreTimer = nil
+        if v < 1.0 {
+            opacityRestoreTimer = Timer.scheduledTimer(withTimeInterval: 90, repeats: false) { [weak self] _ in
+                self?.panel.alphaValue = 1.0
+            }
+        }
+    }
+
     // MARK: - Freeze / panic
 
     func togglePanic() {
@@ -321,6 +382,8 @@ final class BuddyController: NSObject, SpriteViewDelegate {
         stopMoving()
         bubble.hide()
         setProp(nil)
+        setLayer(behind: false)
+        setOpacity(1)
         currentAnim = ""
         pendingAnim = nil
         play("sleep")
@@ -366,6 +429,8 @@ final class BuddyController: NSObject, SpriteViewDelegate {
     func spriteDragStarted() {
         held = true
         stopMoving()
+        setLayer(behind: false)
+        setOpacity(1)
         brain.emit("dragStart")
     }
 

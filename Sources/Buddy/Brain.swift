@@ -137,6 +137,22 @@ final class Brain {
         }
         set("isMoving", isMoving)
 
+        // Granted wishes: window awareness + real hiding.
+        let windows: @convention(block) () -> [[String: Any]] = { [weak self] in
+            self?.controller?.windowList() ?? []
+        }
+        set("windows", windows)
+
+        let layer: @convention(block) (String) -> Void = { [weak self] mode in
+            self?.controller?.setLayer(behind: mode == "behind")
+        }
+        set("layer", layer)
+
+        let opacity: @convention(block) (Double) -> Void = { [weak self] v in
+            self?.controller?.setOpacity(v)
+        }
+        set("opacity", opacity)
+
         // buddy.prop("glasses") dons an accessory from sprites.json props;
         // buddy.prop(null) removes it.
         let propJS: @convention(block) (JSValue) -> Void = { [weak self] v in
