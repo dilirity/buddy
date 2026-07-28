@@ -3,6 +3,8 @@
 # orders in prompt.md, verifies the result loads, reverts if it does not.
 set -uo pipefail
 export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin"
+# The mutation session must not feed buddy's own event stream.
+export BUDDY_SELF=1
 
 BRAIN="$HOME/.buddy/brain"
 PROMPT="$(dirname "$0")/prompt.md"

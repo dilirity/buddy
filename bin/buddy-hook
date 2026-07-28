@@ -2,6 +2,9 @@
 # Claude Code hook target. Reads the hook JSON on stdin, appends a slim event
 # line to ~/.buddy/events.jsonl for the buddy app to react to.
 # Usage (in hook config): buddy-hook <EventName>
+# Sessions buddy runs itself (think(), the mutator) tag BUDDY_SELF - drop
+# their events or buddy reacts to its own thoughts in a feedback loop.
+[ -n "${BUDDY_SELF:-}" ] && exit 0
 mkdir -p "$HOME/.buddy"
 python3 - "$1" <<'PY'
 import json, os, sys, time

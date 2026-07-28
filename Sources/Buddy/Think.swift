@@ -13,6 +13,9 @@ final class Think {
             var env = ProcessInfo.processInfo.environment
             let extra = ":/opt/homebrew/bin:/usr/local/bin:" + NSHomeDirectory() + "/.local/bin"
             env["PATH"] = (env["PATH"] ?? "/usr/bin:/bin") + extra
+            // Tag the session so buddy-hook drops its events: buddy must not
+            // react to the echo of its own thoughts.
+            env["BUDDY_SELF"] = "1"
             p.environment = env
             let inPipe = Pipe(), outPipe = Pipe()
             p.standardInput = inPipe
