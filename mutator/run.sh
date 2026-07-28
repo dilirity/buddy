@@ -1,0 +1,36 @@
+#!/bin/bash
+# Nightly buddy mutation. Runs claude against the live brain with the standing
+# orders in prompt.md, verifies the result loads, reverts if it does not.
+set -uo pipefail
+export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin"
+
+BRAIN="$HOME/.buddy/brain"
+PROMPT="$(dirname "$0")/prompt.md"
+LOG="$HOME/.buddy/mutator.log"
+
+cd "$BRAIN" || exit 1
+echo "=== mutation $(date) ===" >> "$LOG"
+
+# Snapshot the test roster: entries added by this mutation show under
+# "What's New" in the menu until the next mutation graduates them.
+cp "$BRAIN/tests.json" "$HOME/.buddy/tests.prev.json" 2>/dev/null || true
+
+claude -p "$(cat "$PROMPT")" \
+  --permission-mode acceptEdits \
+  --add-dir "$HOME/.buddy" \
+  >> "$LOG" 2>&1
+
+# Safety net: the mutator was told to check and commit, but trust nothing.
+if ! "$HOME/.buddy/bin/Buddy" --check >> "$LOG" 2>&1; then
+  echo "check failed, reverting" >> "$LOG"
+  git checkout -- . >> "$LOG" 2>&1
+  git clean -fd >> "$LOG" 2>&1
+  exit 1
+fi
+
+# Commit anything the mutator left uncommitted so history stays complete.
+if ! git diff --quiet || ! git diff --cached --quiet || [ -n "$(git status --porcelain)" ]; then
+  git add -A >> "$LOG" 2>&1
+  git commit -m "nightly drift (auto)" >> "$LOG" 2>&1
+fi
+echo "=== done $(date) ===" >> "$LOG"

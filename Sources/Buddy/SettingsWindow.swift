@@ -1,0 +1,133 @@
+import AppKit
+
+// Native settings UI. Writes straight to traits.json / invariants.json, so the
+// senses' file watchers (and buddy's opinions about being tweaked) fire as usual.
+final class SettingsWindow: NSObject {
+    private var window: NSWindow?
+    private var valueLabels: [String: NSTextField] = [:]
+    private var formats: [String: String] = [:]
+
+    func show() {
+        window?.close()
+        valueLabels.removeAll()
+        formats.removeAll()
+        build()
+        NSApp.activate(ignoringOtherApps: true)
+        window?.center()
+        window?.makeKeyAndOrderFront(nil)
+    }
+
+    private func build() {
+        let stack = NSStackView()
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 10
+        stack.edgeInsets = NSEdgeInsets(top: 20, left: 20, bottom: 20, right: 20)
+
+        stack.addArrangedSubview(header("Personality"))
+        let traits = Traits.load()
+        let preferred = ["mischief", "chattiness", "energy", "clinginess", "weirdness"]
+        let names = preferred.filter { traits[$0] != nil }
+            + traits.keys.filter { !preferred.contains($0) }.sorted()
+        for name in names {
+            guard let t = traits[name] else { continue }
+            stack.addArrangedSubview(sliderRow(
+                id: "trait:\(name)", label: name,
+                min: t.min, max: t.max, value: t.clamped, format: "%.2f"))
+        }
+        stack.addArrangedSubview(note("Sliders move within each trait's min/max drift bounds (traits.json)."))
+
+        stack.addArrangedSubview(header("Limits"))
+        let inv = Invariants.load()
+        stack.addArrangedSubview(sliderRow(
+            id: "inv:maxDisruptivePerHour", label: "disruptive / hour",
+            min: 0, max: 30, value: Double(inv.maxDisruptivePerHour), format: "%.0f"))
+        stack.addArrangedSubview(sliderRow(
+            id: "inv:panicFreezeMinutes", label: "panic freeze min",
+            min: 1, max: 60, value: Double(inv.panicFreezeMinutes), format: "%.0f"))
+        stack.addArrangedSubview(note("The leash. The nightly mutator cannot touch these."))
+
+        let win = NSWindow(contentRect: .zero,
+                           styleMask: [.titled, .closable],
+                           backing: .buffered, defer: false)
+        win.title = "Buddy Settings"
+        win.isReleasedWhenClosed = false
+        win.contentView = stack
+        win.setContentSize(stack.fittingSize)
+        window = win
+    }
+
+    private func header(_ text: String) -> NSTextField {
+        let l = NSTextField(labelWithString: text)
+        l.font = NSFont.boldSystemFont(ofSize: 13)
+        return l
+    }
+
+    private func note(_ text: String) -> NSTextField {
+        let l = NSTextField(labelWithString: text)
+        l.font = NSFont.systemFont(ofSize: 10)
+        l.textColor = .secondaryLabelColor
+        return l
+    }
+
+    private func sliderRow(id: String, label: String, min: Double, max: Double,
+                           value: Double, format: String) -> NSStackView {
+        let row = NSStackView()
+        row.orientation = .horizontal
+        row.spacing = 8
+
+        let name = NSTextField(labelWithString: label)
+        name.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+        name.widthAnchor.constraint(equalToConstant: 130).isActive = true
+
+        let slider = NSSlider(value: value, minValue: min, maxValue: max,
+                              target: self, action: #selector(sliderChanged(_:)))
+        slider.identifier = NSUserInterfaceItemIdentifier(id)
+        slider.isContinuous = false
+        slider.widthAnchor.constraint(equalToConstant: 200).isActive = true
+
+        let val = NSTextField(labelWithString: String(format: format, value))
+        val.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+        val.widthAnchor.constraint(equalToConstant: 44).isActive = true
+        valueLabels[id] = val
+        formats[id] = format
+
+        row.addArrangedSubview(name)
+        row.addArrangedSubview(slider)
+        row.addArrangedSubview(val)
+        return row
+    }
+
+    @objc private func sliderChanged(_ sender: NSSlider) {
+        guard let id = sender.identifier?.rawValue else { return }
+        let value = sender.doubleValue
+        valueLabels[id]?.stringValue = String(format: formats[id] ?? "%.2f", value)
+        if id.hasPrefix("trait:") {
+            saveTrait(String(id.dropFirst("trait:".count)), value: value)
+        } else if id.hasPrefix("inv:") {
+            saveInvariant(String(id.dropFirst("inv:".count)), value: Int(value.rounded()))
+        }
+    }
+
+    private func saveTrait(_ name: String, value: Double) {
+        guard let data = try? Data(contentsOf: BuddyPaths.traits),
+              var json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              var spec = json[name] as? [String: Any] else { return }
+        spec["value"] = (value * 100).rounded() / 100
+        json[name] = spec
+        write(json, to: BuddyPaths.traits)
+    }
+
+    private func saveInvariant(_ name: String, value: Int) {
+        guard let data = try? Data(contentsOf: BuddyPaths.invariants),
+              var json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return }
+        json[name] = value
+        write(json, to: BuddyPaths.invariants)
+    }
+
+    private func write(_ json: [String: Any], to url: URL) {
+        if let out = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]) {
+            try? out.write(to: url)
+        }
+    }
+}
