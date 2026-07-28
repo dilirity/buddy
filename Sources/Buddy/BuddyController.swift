@@ -174,7 +174,7 @@ final class BuddyController: NSObject, SpriteViewDelegate {
     }
 
     func moveTo(_ target: NSPoint, speed: Double) {
-        guard !held, !isFrozen else { return }
+        guard !held, !isFrozen, !evolving else { return }
         // Clamp so no behavior can walk buddy off screen.
         var t = target
         let size = panel.frame.size
@@ -192,7 +192,7 @@ final class BuddyController: NSObject, SpriteViewDelegate {
     // Live pursuit: retargets to the cursor every frame. Emits "caught" on
     // contact, "gaveUp" after 10s of failed chase.
     func chaseCursor(speed: Double) {
-        guard !held, !isFrozen else { return }
+        guard !held, !isFrozen, !evolving else { return }
         moveTarget = nil
         chasing = true
         chaseDeadline = Date().addingTimeInterval(10)
@@ -266,8 +266,11 @@ final class BuddyController: NSObject, SpriteViewDelegate {
 
     // MARK: - Disruption budget (invariant-enforced)
 
+    // Shell-level surgery lockdown: while evolving, disruptive and movement
+    // verbs refuse natively so no behavior - present or future-mutated - can
+    // act out mid-evolution. Guards in JS are courtesy; this is the law.
     private func allowDisruptive() -> Bool {
-        guard !isFrozen else { return false }
+        guard !isFrozen, !evolving else { return false }
         if testMode { return true }
         let cutoff = Date().addingTimeInterval(-3600)
         disruptiveTimestamps.removeAll { $0 < cutoff }

@@ -34,6 +34,7 @@ let stealing = false;
 
 buddy.every(120000, () => {
   if (buddy.isHeld() || buddy.isFrozen() || state.mood === "sleepy") return;
+  if (buddy.isMoving() || state.busy) return;
   if (!chance(buddy.traits.get("mischief") * 0.25)) return;
   if (chance(0.5)) {
     const c = buddy.cursor.pos();
