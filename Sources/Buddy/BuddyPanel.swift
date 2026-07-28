@@ -23,6 +23,7 @@ protocol SpriteViewDelegate: AnyObject {
     func spriteDragged(to origin: NSPoint)
     func spriteDragEnded()
     func spritePoked()
+    func spriteTalkRequested()
 }
 
 final class SpriteView: NSView {
@@ -105,6 +106,8 @@ final class SpriteView: NSView {
     override func mouseUp(with event: NSEvent) {
         if dragging {
             delegate?.spriteDragEnded()
+        } else if event.clickCount == 2 {
+            delegate?.spriteTalkRequested()
         } else {
             delegate?.spritePoked()
         }

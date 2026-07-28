@@ -137,6 +137,31 @@ final class Brain {
         }
         set("isMoving", isMoving)
 
+        // buddy.music - narrow whitelisted verbs, Spotify or Apple Music.
+        let musicObj = JSValue(newObjectIn: context)!
+        let musicPlay: @convention(block) (JSValue) -> Bool = { [weak self] playlist in
+            self?.controller?.musicPlay(playlist: playlist.isString ? playlist.toString() : nil) ?? false
+        }
+        musicObj.setObject(musicPlay, forKeyedSubscript: "play" as NSString)
+        let musicPause: @convention(block) () -> Void = { [weak self] in
+            self?.controller?.music.pause()
+        }
+        musicObj.setObject(musicPause, forKeyedSubscript: "pause" as NSString)
+        let musicNext: @convention(block) () -> Bool = { [weak self] in
+            self?.controller?.musicNext() ?? false
+        }
+        musicObj.setObject(musicNext, forKeyedSubscript: "next" as NSString)
+        let musicStatus: @convention(block) (JSValue) -> Void = { [weak self] cb in
+            guard let self else { return }
+            let gen = self.generation
+            self.controller?.music.status { [weak self] result in
+                guard let self, self.generation == gen else { return }
+                cb.call(withArguments: [result])
+            }
+        }
+        musicObj.setObject(musicStatus, forKeyedSubscript: "status" as NSString)
+        buddy.setObject(musicObj, forKeyedSubscript: "music" as NSString)
+
         // Granted wishes: window awareness + real hiding.
         let windows: @convention(block) () -> [[String: Any]] = { [weak self] in
             self?.controller?.windowList() ?? []

@@ -12,6 +12,8 @@ final class BuddyController: NSObject, SpriteViewDelegate {
     // Read fresh on every use so settings-window changes apply immediately.
     private var invariants: Invariants { Invariants.load() }
     private let settings = SettingsWindow()
+    let music = MusicBridge()
+    private let talk = TalkPanel()
     private var statusItem: NSStatusItem!
 
     private var currentAnim = ""
@@ -71,6 +73,11 @@ final class BuddyController: NSObject, SpriteViewDelegate {
         panel.orderFrontRegardless()
 
         bubble.onHide = { [weak self] in self?.setProp(nil) }
+        talk.onSubmit = { [weak self] text in
+            guard let self else { return }
+            self.play("scheming")
+            self.brain.emit("chat", ["text": text])
+        }
 
         setupStatusItem()
 
@@ -452,6 +459,25 @@ final class BuddyController: NSObject, SpriteViewDelegate {
         brain.emit("poked")
     }
 
+    func spriteTalkRequested() {
+        guard !isFrozen, !evolving else { return }
+        talk.open(near: panel.frame)
+    }
+
+    // Gated music verbs. Starting/changing music spends disruption budget;
+    // pausing is always free - stopping noise is never hostile.
+    func musicPlay(playlist: String?) -> Bool {
+        guard allowDisruptive() else { return false }
+        music.play(playlist: playlist)
+        return true
+    }
+
+    func musicNext() -> Bool {
+        guard allowDisruptive() else { return false }
+        music.next()
+        return true
+    }
+
     // MARK: - Status item
 
     private func setupStatusItem() {
@@ -475,6 +501,7 @@ final class BuddyController: NSObject, SpriteViewDelegate {
         menu.addItem(evolve)
         rebuildTestMenu()
         menu.addItem(.separator())
+        menu.addItem(NSMenuItem(title: "Talk to Buddy…", action: #selector(menuTalk), keyEquivalent: "t"))
         menu.addItem(NSMenuItem(title: "Settings…", action: #selector(menuSettings), keyEquivalent: ","))
         menu.addItem(NSMenuItem(title: "Open Brain Folder", action: #selector(menuOpenBrain), keyEquivalent: ""))
         menu.addItem(.separator())
@@ -609,6 +636,7 @@ final class BuddyController: NSObject, SpriteViewDelegate {
     @objc private func menuReload() { reloadBrainAndSprites() }
     @objc private func menuOpenBrain() { NSWorkspace.shared.open(BuddyPaths.brain) }
     @objc private func menuSettings() { settings.show() }
+    @objc private func menuTalk() { spriteTalkRequested() }
     @objc private func menuQuit() { NSApp.terminate(nil) }
 
     @objc private func menuToggleTestMode() {

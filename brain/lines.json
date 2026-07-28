@@ -20,6 +20,8 @@
   "evolveStart": ["something is happening to me", "i feel... updates coming", "brain surgery. do not perceive me", "evolving. this tickles"],
   "evolveProgress": ["still evolving. growing new neurons", "brains are complicated ok", "mutation in progress. do not turn me off", "i can feel my quips multiplying"],
   "evolveBusy": ["busy. brain surgery.", "do not perceive me right now", "evolving. come back in a minute"],
+  "djStart": ["this silence is illegal. fixing it", "dj buddy in the house", "vibe check failed. adding music"],
+  "djAlready": ["music already on. respect.", "you have taste today"],
   "evolveChanged": ["i am NEW. check whats new in my menu", "fresh brain, who dis", "i contain new tricks now"],
   "evolveSame": ["hm. nothing changed. i remain iconic", "evolution said no thanks", "already perfect, apparently"],
   "config": {
