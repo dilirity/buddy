@@ -248,7 +248,7 @@ final class BuddyController: NSObject, SpriteViewDelegate {
             return
         }
         let size = panel.frame.size
-        let target: NSPoint
+        var target: NSPoint
         if chasing {
             if Date() > chaseDeadline {
                 let wasApproach = approachMode
