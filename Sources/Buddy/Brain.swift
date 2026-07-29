@@ -158,6 +158,20 @@ final class Brain {
             } else {
                 try? line.data(using: .utf8)?.write(to: url)
             }
+            // Commit right away so runtime writes are never sitting loose in
+            // the brain repo. (Nightly run.sh still sweeps up anything missed,
+            // e.g. if commit signing is locked.)
+            DispatchQueue.global(qos: .utility).async {
+                let g = Process()
+                g.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+                g.arguments = ["-C", BuddyPaths.brain.path,
+                               "commit", "-m", "feedback from pete (via chat)", "--", "feedback.md"]
+                g.standardOutput = Pipe()
+                g.standardError = Pipe()
+                try? g.run()
+                g.waitUntilExit()
+                buddyLog("feedback committed (exit \(g.terminationStatus))")
+            }
         }
         set("feedback", feedbackJS)
 
