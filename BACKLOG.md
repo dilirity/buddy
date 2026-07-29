@@ -19,3 +19,6 @@
 - Eye tracking: if data-driven directional look frames (mutator's job) feel too coarse, add a native pupil overlay layer that offsets toward the cursor continuously.
 - Chat: dedicated "think" animation slot (brain-side once sprites.json has one - shell needs nothing).
 - Repetition: pickFresh covers lines; behaviors themselves repeat - mutator mandate covers, watch if it needs mechanical help (per-behavior cooldowns in core).
+
+## Android companion (the expedition)
+- Real buddy-on-phone: Android overlay app ("draw over other apps"), renders the same sprites.json pixel maps, subscribes to the ntfy topic for arrive/return commands and publishes phone-side events (pokes) back. Presence handoff: buddy exists on ONE device at a time - Mac hides it while abroad, phone walks it in. Mini-brain on the phone (idle/wander/poke/lines); personality, evolution, memory stay on the Mac; trip reports on return. Separate repo, Kotlin, days of work - the current ghost-at-the-edge travel act is the placeholder fiction until then.
