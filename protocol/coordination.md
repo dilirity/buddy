@@ -1,0 +1,163 @@
+# Buddy coordination protocol
+
+How one buddy roams across devices with no server. Companion to MULTI-DEVICE.md
+(the why); this doc is the what, exactly. v1, LAN only.
+
+## Terms
+
+- **Owner / coordinator**: the device buddy is currently on. Holds canonical
+  state, assigns event sequence numbers, initiates travel. One and the same.
+- **Peer**: any device running a buddy shell, owner or not.
+- **Epoch**: monotonic generation counter, the correctness core. Bumped by
+  every ownership change (travel or election). All frames carry it.
+- **Rank**: fixed per-device priority. mac = 1, phone = 2, next device = 3.
+  Lower number = higher priority.
+
+## Transport
+
+- Peer-to-peer TCP, newline-delimited JSON frames (one object per line).
+  No WebSocket, no HTTP - both platforms speak raw sockets trivially and
+  the payloads are a few KB.
+- Heartbeats are UDP datagrams, same JSON shape, fire-and-forget.
+- Discovery: mDNS service `_buddy._tcp` advertising the TCP port. Peers ALSO
+  persist last-known `ip:port` per peer and dial those directly when mDNS is
+  silent (Android NSD is flaky). ntfy poke is the final fallback to wake a
+  peer that isn't announcing.
+- Default ports: TCP 47800, UDP heartbeat 47801. mDNS advertisement wins over
+  defaults.
+
+## Frame envelope
+
+Every frame, TCP or UDP:
+
+```json
+{"v": 1, "s": "<shared secret>", "epoch": 12, "from": "mac", "type": "...", ...}
+```
+
+- `v`: protocol version. Peers ignore frames with a higher `v` than they speak.
+- `s`: hard-coded shared secret. Frames without the exact value are dropped
+  silently. Not cryptography - a doorknob lock for the home LAN.
+- `from`: stable device id (also carries rank via static config).
+- Stale-epoch rule: any frame whose `epoch` is lower than the receiver's
+  current epoch is rejected (except `hello`, which is how a stale peer learns
+  it is stale). A receiver seeing a HIGHER epoch adopts it as current and, if
+  it thought it owned buddy, despawns silently.
+- Equal-epoch conflict (two claimants minted the same number): lower rank wins.
+  The loser despawns and discards its state.
+
+## Frame types
+
+| type | via | sent by | meaning |
+|---|---|---|---|
+| `heartbeat` | UDP | everyone | "my app is alive"; includes current epoch + whether I own buddy |
+| `hello` | TCP | joiner | on connect: my epoch, my persisted snapshot's epoch; answered with `state` |
+| `state` | TCP | owner | full state snapshot event: `{epoch, seq, op, payload}` |
+| `travel` | TCP | owner | "incoming": full state + proposed epoch (current+1) |
+| `travel-ack` | TCP | target | accepts the trip; target now owns proposed epoch |
+| `claim` | TCP | new owner | ownership announcement after travel-ack or election win |
+| `poke` | ntfy | anyone | out-of-band wake: "buddy app, restart and rejoin" |
+
+## Replication
+
+- Owner broadcasts a `state` frame to all connected peers on EVERY state
+  change, not on a timer.
+- `seq` is monotonic within an epoch, assigned by the owner. v1 payload is the
+  FULL snapshot, so followers may skip gaps: latest (epoch, seq) wins,
+  applied atomically. The framing stays so deltas can replace snapshots later.
+- New epoch starts at seq 0 with a full snapshot baseline.
+- Followers persist the latest snapshot + epoch to disk on receipt (cheap,
+  few KB) - this is what cold start and election recovery run on.
+
+## Liveness and what silence means
+
+- Every peer heartbeats to every other peer every 3s (UDP, mesh, not
+  hub-and-spoke).
+- A peer is "silent" after 15s (5 missed heartbeats).
+- Silence is interpreted by WHO went silent, because sleep is announced (see
+  handoff) and phones walk out of houses:
+  - **Phone silent**: never a death. Assume it left the wifi or dozed - buddy
+    is out with Pete if the phone owned it. No election, no resurrection.
+    Recovery attempt: ntfy `poke`; otherwise wait for it to come home.
+  - **Non-portable device (mac) silent**: crash. If it owned buddy, survivors
+    elect (below). Its announced sleep would have handed buddy off first.
+
+## Sleep handoff (the normal path)
+
+Sleep is an announced death. An owner that knows it is about to sleep travels
+buddy away instead of dying silently:
+
+- mac: `NSWorkspace.willSleepNotification`.
+- phone: doze entry or screen-off sustained past a threshold (raw screen-off
+  would ping-pong buddy on every lock; default threshold 10 min, tune later).
+- Target: highest-priority (lowest rank) live peer.
+- No live peer: persist snapshot, buddy sleeps with the device. On wake,
+  `hello` and resume (a higher epoch heard on rejoin means someone else
+  legitimately took over; defer to it).
+- Handoff is best-effort and never blocks or delays the device's sleep. If it
+  fails mid-flight, the crash/away rules above cover it.
+
+## Travel handshake
+
+1. Owner -> target over TCP: `travel` with full state and epoch N+1.
+2. Target replies `travel-ack`, renders arrival (walk-in/portal), broadcasts
+   `claim` (epoch N+1) to all peers.
+3. Origin despawns buddy on receiving the ack.
+4. No ack within 10s: origin keeps epoch N and buddy ("trip cancelled" fiction).
+
+Edge, lost ack: target claimed N+1 but origin timed out and kept buddy. Two
+buddies exist until the target's `claim` reaches the origin; then stale-epoch
+rule despawns the origin's. Accepted, brief, self-healing.
+
+Edge, target dies between ack and claim: origin already despawned, buddy is
+nowhere. If the target was the phone, "phone silent = away" masks it until an
+ntfy poke revives the app (which resumes from its persisted snapshot). If the
+target was the mac, survivors elect. Window is milliseconds; accepted.
+
+Double travel (owner told to travel twice, or two devices both think they can
+initiate): only the current owner may send `travel`, and a target already
+holding an unresolved `travel` rejects a second one (no ack). Epochs settle
+any remainder.
+
+## Election (the crash backstop)
+
+Runs only when a NON-PHONE owner goes silent past the timeout.
+
+1. Each survivor checks its liveness table: anyone alive with lower rank
+   than me? If yes, wait ~5s for their `claim`, then re-check down the line.
+2. If no: claim ownership with epoch+1 (over my highest known epoch),
+   broadcast `claim`, spawn buddy from my persisted snapshot with
+   emergency-arrival fiction, resume the intent journal.
+3. Zombie wake (old owner returns thinking it still owns): its first frames
+   carry a stale epoch and get rejected; on hearing the current epoch it
+   despawns silently and follows.
+
+## Cold start
+
+1. On launch: start mDNS browse + announce, dial cached peer ips, send `hello`s.
+2. Wait a 10s grace period, plus one ntfy poke ("anyone holding buddy?").
+3. If a peer answers with a live owner: join as follower.
+4. If not: claim with (highest persisted epoch)+1 and wake buddy from the
+   persisted snapshot.
+5. Simultaneous cold starts: both claim, equal-epoch rule (lower rank wins)
+   settles it.
+
+Accepted blip: a device that was off while buddy lived elsewhere can win cold
+start with stale state; when the fresher peer joins, its higher epoch wins and
+the stale buddy despawns. Buddy briefly remembers less than it should.
+
+## Clock rule
+
+No wall-clock timestamps participate in ordering or conflict resolution,
+anywhere. Epoch + seq + rank decide everything. Device clocks may skew freely.
+
+## Defaults (tune later, change here first)
+
+| knob | default |
+|---|---|
+| heartbeat interval | 3s |
+| silence threshold | 15s |
+| election claim wait | 5s |
+| travel ack timeout | 10s |
+| cold start grace | 10s |
+| phone sleep-handoff idle threshold | 10 min |
+| TCP / UDP ports | 47800 / 47801 |
