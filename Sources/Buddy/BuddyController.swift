@@ -414,6 +414,34 @@ final class BuddyController: NSObject, SpriteViewDelegate {
         }
     }
 
+    // MARK: - Phone (ntfy push)
+
+    private var lastPhonePush = Date.distantPast
+
+    // Send a push to Pete's phone via ntfy. Hard-limited: shares the
+    // disruption budget AND a native 10-minute minimum gap - a buzzing phone
+    // is the most disruptive thing buddy can do.
+    func phoneNotify(_ text: String) -> Bool {
+        guard Date().timeIntervalSince(lastPhonePush) > 600 else { return false }
+        guard let data = try? Data(contentsOf: BuddyPaths.home.appendingPathComponent("phone.json")),
+              let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let topic = json["topic"] as? String, !topic.isEmpty else { return false }
+        guard allowDisruptive() else { return false }
+        lastPhonePush = Date()
+        DispatchQueue.global(qos: .utility).async {
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: "/usr/bin/curl")
+            p.arguments = ["-s", "-m", "10", "-H", "Title: buddy", "-d", text,
+                           "https://ntfy.sh/\(topic)"]
+            p.standardOutput = Pipe()
+            p.standardError = Pipe()
+            try? p.run()
+            p.waitUntilExit()
+            buddyLog("phone push (exit \(p.terminationStatus))")
+        }
+        return true
+    }
+
     // MARK: - Freeze / panic
 
     func togglePanic() {

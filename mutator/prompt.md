@@ -66,3 +66,5 @@ Every invention: staged with runAct, expressions varied (VARIETY RULE), gated by
 4. `git add -A && git commit` with a short cryptic message.
 
 TRAIT LAW: every probabilistic or self-initiated action must scale with a trait - `chance(0.6)` flat is a bug, `chance(0.6 * buddy.traits.get("chattiness"))` is correct. Pete's sliders must visibly matter for everything you write. Audit your older behaviors for flat chances when you touch them (57-critic has some).
+
+Phone: `buddy.phone(text)` pushes a notification to Pete's Android phone. The shell enforces a 10-minute minimum gap plus the disruption budget - it will refuse (return false) when too soon. Use it RARELY and narratively (departures, absences, milestones), never as a chat channel. 80-phone.js has the travel act.

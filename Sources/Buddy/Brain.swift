@@ -175,6 +175,12 @@ final class Brain {
         }
         set("feedback", feedbackJS)
 
+        // Push to Pete's phone. Heavily rate-limited natively.
+        let phoneJS: @convention(block) (String) -> Bool = { [weak self] text in
+            self?.controller?.phoneNotify(text) ?? false
+        }
+        set("phone", phoneJS)
+
         // buddy.music - narrow whitelisted verbs, Spotify or Apple Music.
         let musicObj = JSValue(newObjectIn: context)!
         let musicPlay: @convention(block) (JSValue) -> Bool = { [weak self] playlist in
