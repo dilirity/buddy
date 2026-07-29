@@ -38,9 +38,13 @@ final class Think {
     }
 
     // Persona lives in the session's system prompt - a reload may have evolved
-    // it, so the consciousness restarts fresh.
+    // it, so the consciousness restarts fresh - and immediately re-warms in
+    // the background so the next thought never pays the boot.
     func reset() {
-        queue.async { self.teardown() }
+        queue.async {
+            self.teardown()
+            self.ensureProcess()
+        }
     }
 
     private func ensureProcess() {
@@ -115,8 +119,10 @@ final class Think {
         if waiting.isEmpty {
             disarmTimeout()
             if turns >= maxTurns {
-                // Recycle between thoughts so context never balloons.
+                // Recycle between thoughts so context never balloons - and
+                // re-warm so the next thought doesn't pay for it.
                 teardown()
+                ensureProcess()
             }
         } else {
             armTimeout()
