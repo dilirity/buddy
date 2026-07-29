@@ -31,7 +31,7 @@ globalThis.sayFact = function (secs) {
 // References sneak into celebrations.
 buddy.on("claude:Stop", () => {
   if (state.busy) return;
-  if (chance(0.15 * buddy.traits.get("weirdness") + 0.05)) {
+  if (chance(0.2 * buddy.traits.get("weirdness"))) {
     buddy.after(2000, () => sayRef(5));
   }
 });
