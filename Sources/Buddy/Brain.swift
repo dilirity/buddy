@@ -55,6 +55,12 @@ final class Brain {
         }
     }
 
+    // Whether the brain is mid-act (state.busy) - the anim watchdog leaves
+    // poses alone while true.
+    func isBusyState() -> Bool {
+        context?.evaluateScript("!!(globalThis.state && state.busy)")?.toBool() ?? false
+    }
+
     func emit(_ name: String, _ payload: [String: Any] = [:]) {
         guard let hs = handlers[name] else { return }
         // Drop once-handlers before calling so re-registration inside a handler works.

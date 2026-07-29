@@ -103,7 +103,7 @@ final class BuddyController: NSObject, SpriteViewDelegate {
         // Behaviors are supposed to return to idle themselves; when their timer
         // chain gets interrupted (freeze, reload), this catches it.
         commonTimer(10, repeats: true) { [weak self] _ in
-            guard let self, !self.held, !self.isFrozen else { return }
+            guard let self, !self.held, !self.isFrozen, !self.brain.isBusyState() else { return }
             let transient = !["idle", "walk", "sleep", "evolve"].contains(self.currentAnim)
             if transient && Date().timeIntervalSince(self.lastAnimChange) > 15 {
                 self.play("idle")

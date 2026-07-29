@@ -24,28 +24,9 @@ buddy.on("test:visitPhone", () => {
   });
 });
 
-// Pete texting from his phone. Same memory as desktop chat - one relationship,
-// two screens.
-buddy.on("phoneChat", (e) => {
-  const log = buddy.memory.get("chatLog") || [];
-  const recent = log.slice(-6).map((x) => "pete: " + x.q + "\nbuddy: " + x.a).join("\n");
-  const prompt =
-    (recent ? "recent conversation:\n" + recent + "\n\n" : "") +
-    "your personality sliders: " + JSON.stringify(buddy.traits.all()) + ". mood: " + state.mood + ".\n" +
-    'pete texted you FROM HIS PHONE: "' + e.text + '"\n' +
-    "reply as buddy via notification - one or two short lines, in character. you are on the mac, he is away.";
-  buddy.play("scheming");
-  buddy.say(pickFresh(["texting back...", "replying. one thumb.", "hold on. composing."]), 8, "phone");
-  buddy.think(prompt, (t) => {
-    const reply = t || "signal lost in the goblin tunnel. say again?";
-    buddy.phoneReply(reply);
-    buddy.play("excited");
-    buddy.say("sent!", 3, "phone");
-    log.push({ q: "[phone] " + e.text, a: reply });
-    buddy.memory.set("chatLog", log.slice(-20));
-    buddy.after(2500, () => buddy.play("idle"));
-  });
-});
+// Pete texting from his phone: same triage as desktop chat (75-chat.js),
+// delivery via notification. One relationship, two screens.
+buddy.on("phoneChat", (e) => handleChatMessage(e.text, "phone"));
 
 // When Pete leaves for a while, buddy occasionally texts the void.
 buddy.on("idle", (e) => {
