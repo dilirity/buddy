@@ -10,6 +10,21 @@ buddy.on("test:visitPhone", () => {
     { anim: "walk", moveTo: { x: s.x + s.w - 90, y: s.y + 20, speed: 240 }, until: "arrived" },
     { anim: "hide", opacity: 0.15, ms: 1200 },
   ], () => {
+    // Real travel when a peer device is on the LAN; the shell hides buddy on
+    // ack and it appears over there. ntfy text is the no-peer fallback.
+    if (buddy.hasPeer && buddy.hasPeer()) {
+      buddy.travel(pickFresh([
+        "i am in your pocket now. the mac is boring without you",
+        "hello from your phone. the cursor misses me already",
+        "small screen. cozy. might stay",
+      ]), (ok) => {
+        if (ok) return;
+        buddy.opacity(1);
+        buddy.play("idle");
+        buddy.say("trip cancelled. the portal fizzled", 4);
+      });
+      return;
+    }
     const sent = buddy.phone(pickFresh([
       "i am in your pocket now. the mac is boring without you",
       "hello from your phone. the cursor misses me already",
@@ -22,6 +37,13 @@ buddy.on("test:visitPhone", () => {
       buddy.after(3000, () => buddy.play("idle"));
     });
   });
+});
+
+// Coming home from another device: the shell re-shows the panel; undo the
+// travel act's fade so buddy isn't a ghost.
+buddy.on("travelArrived", () => {
+  buddy.opacity(1);
+  buddy.after(3000, () => buddy.play("idle"));
 });
 
 // Pete texting from his phone: same triage as desktop chat (75-chat.js),
