@@ -13,5 +13,6 @@
   { "id": "grudge", "title": "Trait-change sass" },
   { "id": "clingy", "title": "Clingy visit (heart)" },
   { "id": "walk", "title": "Walk somewhere" },
-  { "id": "dj", "title": "DJ: play music" }
+  { "id": "dj", "title": "DJ: play music" },
+  { "id": "djStop", "title": "DJ: stop the music" }
 ]

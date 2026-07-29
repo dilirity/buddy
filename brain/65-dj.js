@@ -24,3 +24,10 @@ buddy.every(300000, () => {
 });
 
 buddy.on("test:dj", () => tryDJ(true));
+
+buddy.on("test:djStop", () => {
+  buddy.music.pause();
+  buddy.play("scheming");
+  buddy.say(pickFresh(["fine. silence it is.", "killing the vibe as requested", "music off. you monster."]), 4);
+  buddy.after(2500, () => buddy.play("idle"));
+});
