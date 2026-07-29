@@ -21,8 +21,12 @@ buddy.every(20000, () => {
     roll < 0.4 ? { anim: "excited", prop: "heart", ms: 2600 }
     : roll < 0.7 ? { anim: "excited", line: "clingyArrive", secs: 3, ms: 2600 }
     : { anim: "excited", line: "clingyArrive", secs: 3, prop: "heart", ms: 2600 };
+  // Pick the side with room; coin flip only when both fit.
+  const c = buddy.cursor.pos();
+  const s = buddy.screen();
+  const side = c.x > s.x + s.w - 160 ? -70 : c.x < s.x + 160 ? 70 : chance(0.5) ? 70 : -70;
   runAct([
-    { anim: "walk", approach: { speed: 160, dx: chance(0.5) ? 70 : -70, dy: 0 }, until: "arrived" },
+    { anim: "walk", approach: { speed: 160, dx: side, dy: 0 }, until: "arrived" },
     arrive,
     { anim: "idle" },
   ]);
