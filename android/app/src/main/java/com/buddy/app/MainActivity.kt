@@ -25,6 +25,18 @@ class MainActivity : Activity() {
     private lateinit var serviceBtn: Button
     private lateinit var freezeBtn: Button
     private lateinit var testModeBtn: Button
+    private lateinit var reloadBtn: Button
+    private lateinit var talkBtn: Button
+    private lateinit var testsBtn: Button
+    private val refreshTick = object : Runnable {
+        override fun run() {
+            refresh()
+            status.postDelayed(this, 1500)
+        }
+    }
+
+    private fun buddyIsHere(): Boolean =
+        getSharedPreferences("coordination", Context.MODE_PRIVATE).getBoolean("owner", false)
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
@@ -65,15 +77,15 @@ class MainActivity : Activity() {
         testModeBtn = Button(this).apply {
             setOnClickListener { cmdToService("testMode"); postDelayed() }
         }
-        val reloadBtn = Button(this).apply {
+        reloadBtn = Button(this).apply {
             text = "reload brain"
             setOnClickListener { cmdToService("reload") }
         }
-        val talkBtn = Button(this).apply {
+        talkBtn = Button(this).apply {
             text = "talk to buddy"
             setOnClickListener { talkDialog() }
         }
-        val testsBtn = Button(this).apply {
+        testsBtn = Button(this).apply {
             text = "test interactions"
             setOnClickListener { testsDialog() }
         }
@@ -100,8 +112,14 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        refresh()
         buildSettings() // traits may have just arrived with buddy
+        status.removeCallbacks(refreshTick)
+        status.post(refreshTick) // live: buddy can arrive/leave while visible
+    }
+
+    override fun onPause() {
+        super.onPause()
+        status.removeCallbacks(refreshTick)
     }
 
     private fun postDelayed() {
@@ -114,23 +132,31 @@ class MainActivity : Activity() {
             .isIgnoringBatteryOptimizations(packageName)
         val running = serviceRunning()
 
+        val here = running && buddyIsHere()
+
         overlayBtn.isEnabled = !overlay
         overlayBtn.text = if (overlay) "overlay permission: granted" else "grant overlay permission"
         batteryBtn.isEnabled = !battery
         batteryBtn.text = if (battery) "battery exemption: granted" else "allow background survival"
         serviceBtn.text = if (running) "stop buddy" else "start buddy"
         serviceBtn.isEnabled = overlay
-        freezeBtn.isEnabled = running
+        reloadBtn.isEnabled = running
+        // Buddy-facing controls need buddy actually on this device, not just
+        // the service - a frozen/chatted-at empty screen is nonsense.
+        freezeBtn.isEnabled = here
         freezeBtn.text = if (BuddyService.frozenState) "wake buddy" else "freeze buddy"
-        testModeBtn.isEnabled = running
+        testModeBtn.isEnabled = here
         testModeBtn.text = if (BuddyService.testMode)
             "chaos test mode: ON" else "chaos test mode (1h, no limits)"
+        talkBtn.isEnabled = here
+        testsBtn.isEnabled = here
 
         status.text = when {
             !overlay -> "buddy needs the overlay permission to exist here."
             !running -> "ready. start the service and buddy can travel to this phone."
-            else -> "buddy service is running. buddy appears when it travels here.\n" +
-                "tap buddy: poke. drag: carry. hold 1.5s: send home."
+            !here -> "service running, listening on the LAN. buddy is elsewhere -\n" +
+                "it appears here when it travels over."
+            else -> "buddy is HERE.\ntap: poke. drag: carry. hold still 1.2s: send home."
         }
     }
 
