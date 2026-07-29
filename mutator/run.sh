@@ -22,6 +22,16 @@ trap 'rmdir "$LOCK" 2>/dev/null' EXIT
 cd "$BRAIN" || exit 1
 echo "=== mutation $(date) ===" >> "$LOG"
 
+# Dark wakes often have no network yet - wait up to 5 minutes for it.
+for _ in $(seq 1 30); do
+  nc -z -w 3 api.anthropic.com 443 2>/dev/null && break
+  sleep 10
+done
+if ! nc -z -w 3 api.anthropic.com 443 2>/dev/null; then
+  echo "no network, skipping (the app's staleness check will catch up)" >> "$LOG"
+  exit 0
+fi
+
 # Snapshot the test roster: entries added by this mutation show under
 # "What's New" in the menu until the next mutation graduates them.
 cp "$BRAIN/tests.json" "$HOME/.buddy/tests.prev.json" 2>/dev/null || true
@@ -44,4 +54,6 @@ if ! git diff --quiet || ! git diff --cached --quiet || [ -n "$(git status --por
   git add -A >> "$LOG" 2>&1
   git commit -m "nightly drift (auto)" >> "$LOG" 2>&1
 fi
+# Success marker - the app's staleness check auto-triggers when this gets old.
+date +%s > "$HOME/.buddy/last-evolution"
 echo "=== done $(date) ===" >> "$LOG"

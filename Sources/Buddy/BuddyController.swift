@@ -92,6 +92,10 @@ final class BuddyController: NSObject, SpriteViewDelegate {
 
         play("idle")
 
+        commonTimer(3600, repeats: true) { [weak self] _ in
+            self?.checkEvolutionStaleness()
+        }
+
         // Watchdog: transient anims (excited, scheming, ...) must not stick.
         // Behaviors are supposed to return to idle themselves; when their timer
         // chain gets interrupted (freeze, reload), this catches it.
@@ -640,6 +644,20 @@ final class BuddyController: NSObject, SpriteViewDelegate {
         }
         senses.resync()
         brain.emit("evolveEnd", ["changed": changed])
+    }
+
+    // Missed nights happen (no network on dark wake, laptop shut down).
+    // If the last successful evolution is stale, run one ourselves.
+    func checkEvolutionStaleness() {
+        guard !evolving, !isFrozen else { return }
+        let url = BuddyPaths.home.appendingPathComponent("last-evolution")
+        let last = (try? String(contentsOf: url, encoding: .utf8))
+            .flatMap { Double($0.trimmingCharacters(in: .whitespacesAndNewlines)) } ?? 0
+        let age = Date().timeIntervalSince1970 - last
+        if age > 26 * 3600 {
+            buddyLog("evolution stale (\(Int(age / 3600))h), auto-triggering")
+            runEvolve()
+        }
     }
 
     // The nightly mutation runs via launchd, not through this app - the
