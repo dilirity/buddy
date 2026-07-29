@@ -22,7 +22,7 @@ buddy.every(20000, () => {
     : roll < 0.7 ? { anim: "excited", line: "clingyArrive", secs: 3, ms: 2600 }
     : { anim: "excited", line: "clingyArrive", secs: 3, prop: "heart", ms: 2600 };
   runAct([
-    { anim: "walk", approach: { speed: 160, dx: 70, dy: 0 }, until: "arrived" },
+    { anim: "walk", approach: { speed: 160, dx: chance(0.5) ? 70 : -70, dy: 0 }, until: "arrived" },
     arrive,
     { anim: "idle" },
   ]);

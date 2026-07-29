@@ -261,6 +261,13 @@ final class BuddyController: NSObject, SpriteViewDelegate {
             let m = NSEvent.mouseLocation
             target = NSPoint(x: m.x + chaseOffset.x - size.width / 2,
                              y: m.y + chaseOffset.y - (approachMode ? size.height / 2 : size.height * 0.4))
+            // Live targets need the same clamp as moveTo - a cursor at the
+            // screen edge must not lead buddy off screen.
+            let screen = NSScreen.screens.first { $0.frame.contains(m) } ?? NSScreen.main
+            if let vis = screen?.visibleFrame {
+                target.x = min(max(target.x, vis.minX), vis.maxX - size.width)
+                target.y = min(max(target.y, vis.minY), vis.maxY - size.height)
+            }
         } else if let t = moveTarget {
             target = t
         } else {

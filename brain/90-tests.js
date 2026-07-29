@@ -82,7 +82,7 @@ buddy.on("caught", () => {
 
 buddy.on("test:clingy", () => {
   runAct([
-    { anim: "walk", approach: { speed: 220, dx: 70, dy: 0 }, until: "arrived" },
+    { anim: "walk", approach: { speed: 220, dx: chance(0.5) ? 70 : -70, dy: 0 }, until: "arrived" },
     { anim: "excited", line: "clingyArrive", secs: 3, prop: "heart", ms: 2600 },
     { anim: "idle" },
   ]);
