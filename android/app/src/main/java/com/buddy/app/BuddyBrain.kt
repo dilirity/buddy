@@ -34,6 +34,7 @@ class BuddyBrain(private val appContext: Context, private val shell: Shell) {
         fun isHeld(): Boolean
         fun phoneNotify(text: String): Boolean
         fun phoneReply(text: String): Boolean
+        fun isFrozen(): Boolean
     }
 
     private val thread = HandlerThread("buddy-brain").apply { start() }
@@ -211,7 +212,7 @@ class BuddyBrain(private val appContext: Context, private val shell: Shell) {
             c.parseJSON("""{"x":${s[0]},"y":${s[1]},"w":${s[2]},"h":${s[3]}}""")
         })
         buddy.setProperty("isHeld", JSCallFunction { shell.isHeld() })
-        buddy.setProperty("isFrozen", JSCallFunction { false })
+        buddy.setProperty("isFrozen", JSCallFunction { shell.isFrozen() })
 
         // Cursor: phone has none - documented no-ops.
         val cursor = c.createNewJSObject()

@@ -17,6 +17,13 @@ import java.io.File
 // coordination client, and the phone senses. The brain is the same JS the
 // mac runs; the service is just the phone-shaped shell around it.
 class BuddyService : Service() {
+    companion object {
+        // Read by MainActivity for menu labels; written only here.
+        @Volatile var frozenState = false
+        @Volatile var testModeUntil = 0L
+        val testMode: Boolean get() = System.currentTimeMillis() < testModeUntil
+    }
+
     private lateinit var coordination: Coordination
     private lateinit var brain: BuddyBrain
     private var overlay: BuddyOverlay? = null
@@ -40,6 +47,21 @@ class BuddyService : Service() {
         ) {
             override fun phoneNotify(text: String): Boolean = pushNotification(text, hard = true)
             override fun phoneReply(text: String): Boolean = pushNotification(text, hard = false)
+            override fun isFrozen(): Boolean = frozenState
+            // Frozen = buddy sleeps, brain output muted (mirrors the mac's
+            // freeze guards on say/move; "sleep" stays allowed like the mac).
+            override fun say(text: String, secs: Double, prop: String?) {
+                if (frozenState) return
+                super.say(text, secs, prop)
+            }
+            override fun moveTo(x: Double, y: Double, speed: Double) {
+                if (frozenState) return
+                super.moveTo(x, y, speed)
+            }
+            override fun play(anim: String) {
+                if (frozenState && anim != "sleep") return
+                super.play(anim)
+            }
         }
         overlay = shell
         brain = BuddyBrain(this, shell)
@@ -123,6 +145,7 @@ class BuddyService : Service() {
     // MARK: - Notifications ("buddy texting" while it lives here)
 
     private fun allowDisruptive(): Boolean {
+        if (testMode) return true // same bypass as the mac's Chaos Test Mode
         val now = System.currentTimeMillis()
         while (disruptions.isNotEmpty() && now - disruptions.first() > 3_600_000) {
             disruptions.removeFirst()
@@ -181,6 +204,26 @@ class BuddyService : Service() {
                 try { JSONObject(it) } catch (e: Exception) { null }
             }
             brain.emit(name, payload)
+        }
+        // Menu commands from MainActivity (the phone's ᴥ equivalent).
+        when (intent?.getStringExtra("cmd")) {
+            "toggleFreeze" -> {
+                frozenState = !frozenState
+                if (frozenState) {
+                    overlay?.stopMoving()
+                    overlay?.play("sleep")
+                } else {
+                    overlay?.play("idle")
+                    brain.emit("unfrozen")
+                }
+            }
+            "reload" -> brain.reload()
+            "testMode" -> {
+                testModeUntil = if (testMode) 0L else System.currentTimeMillis() + 3_600_000
+                overlay?.say(if (testMode) "NO LIMITS?? oh this is gonna be GREAT"
+                             else "aww. limits are back.", 4.0, null)
+                brain.emit("testMode", JSONObject().put("on", testMode))
+            }
         }
         return START_STICKY
     }

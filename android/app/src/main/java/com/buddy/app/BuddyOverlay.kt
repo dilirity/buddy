@@ -121,46 +121,65 @@ open class BuddyOverlay(
         }
     }
 
+    // Hold still 1.2s: send home (fires in place, haptic tick - no perfect
+    // stillness required, 30px slop absorbs finger tremor). Cross the slop:
+    // it's a drag. Quick tap: poke.
+    private var downX = 0f
+    private var downY = 0f
+    private var homeFired = false
+    private val sendHomeRunnable = Runnable {
+        homeFired = true
+        view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+        say("ok ok. going home", 3.0, null)
+        onSendHome()
+    }
+
     init {
         view.setOnTouchListener { _, ev ->
             when (ev.action) {
                 MotionEvent.ACTION_DOWN -> {
                     downTime = System.currentTimeMillis()
+                    downX = ev.rawX
+                    downY = ev.rawY
                     dragMoved = false
+                    homeFired = false
                     held = true
                     moving = false
                     play("held")
                     onEvent("dragStart", null)
+                    ui.postDelayed(sendHomeRunnable, 1200)
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    val nx = (ev.rawX - view.width / 2).toInt()
-                    val ny = (ev.rawY - view.height / 2).toInt()
-                    if (abs(nx - viewParams.x) > 8 || abs(ny - viewParams.y) > 8) dragMoved = true
-                    viewParams.x = nx
-                    viewParams.y = ny
-                    wm.updateViewLayout(view, viewParams)
-                    positionBubble()
+                    if (!dragMoved && hypot((ev.rawX - downX).toDouble(),
+                            (ev.rawY - downY).toDouble()) > 30) {
+                        dragMoved = true
+                        ui.removeCallbacks(sendHomeRunnable)
+                    }
+                    if (dragMoved && !homeFired) {
+                        viewParams.x = (ev.rawX - view.width / 2).toInt()
+                        viewParams.y = (ev.rawY - view.height / 2).toInt()
+                        wm.updateViewLayout(view, viewParams)
+                        positionBubble()
+                    }
                     true
                 }
-                MotionEvent.ACTION_UP -> {
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    ui.removeCallbacks(sendHomeRunnable)
                     held = false
-                    val heldMs = System.currentTimeMillis() - downTime
                     when {
-                        !dragMoved && heldMs > 1200 -> {
-                            say("ok ok. going home", 3.0, null)
-                            onSendHome()
-                        }
-                        !dragMoved -> {
-                            play("excited")
-                            onEvent("poked", null)
-                            ui.postDelayed({ if (anim == "excited") play("idle") }, 2000)
-                        }
-                        else -> {
+                        homeFired -> {} // travel already in flight
+                        dragMoved -> {
                             play("idle")
                             onEvent("dragEnd", org.json.JSONObject()
                                 .put("x", viewParams.x).put("y", viewParams.y))
                         }
+                        System.currentTimeMillis() - downTime < 500 -> {
+                            play("excited")
+                            onEvent("poked", null)
+                            ui.postDelayed({ if (anim == "excited") play("idle") }, 2000)
+                        }
+                        else -> play("idle")
                     }
                     true
                 }
@@ -256,7 +275,8 @@ open class BuddyOverlay(
     override fun isHeld(): Boolean = held
 
     override fun phoneNotify(text: String): Boolean = false // service subclass overrides
-    open override fun phoneReply(text: String): Boolean = false
+    override fun phoneReply(text: String): Boolean = false
+    override fun isFrozen(): Boolean = false
 
     private fun playOnce(name: String, done: () -> Unit) {
         play(name)

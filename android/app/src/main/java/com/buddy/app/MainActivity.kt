@@ -23,6 +23,8 @@ class MainActivity : Activity() {
     private lateinit var overlayBtn: Button
     private lateinit var batteryBtn: Button
     private lateinit var serviceBtn: Button
+    private lateinit var freezeBtn: Button
+    private lateinit var testModeBtn: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,10 +57,34 @@ class MainActivity : Activity() {
                 postDelayed()
             }
         }
+        freezeBtn = Button(this).apply {
+            setOnClickListener { cmdToService("toggleFreeze"); postDelayed() }
+        }
+        testModeBtn = Button(this).apply {
+            setOnClickListener { cmdToService("testMode"); postDelayed() }
+        }
+        val reloadBtn = Button(this).apply {
+            text = "reload brain"
+            setOnClickListener { cmdToService("reload") }
+        }
+        val talkBtn = Button(this).apply {
+            text = "talk to buddy"
+            setOnClickListener { talkDialog() }
+        }
+        val testsBtn = Button(this).apply {
+            text = "test interactions"
+            setOnClickListener { testsDialog() }
+        }
+
         root.addView(status)
         root.addView(overlayBtn)
         root.addView(batteryBtn)
         root.addView(serviceBtn)
+        root.addView(freezeBtn)
+        root.addView(testModeBtn)
+        root.addView(reloadBtn)
+        root.addView(talkBtn)
+        root.addView(testsBtn)
         settingsSection = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         root.addView(settingsSection)
         buildSettings()
@@ -92,6 +118,11 @@ class MainActivity : Activity() {
         batteryBtn.text = if (battery) "battery exemption: granted" else "allow background survival"
         serviceBtn.text = if (running) "stop buddy" else "start buddy"
         serviceBtn.isEnabled = overlay
+        freezeBtn.isEnabled = running
+        freezeBtn.text = if (BuddyService.frozenState) "wake buddy" else "freeze buddy"
+        testModeBtn.isEnabled = running
+        testModeBtn.text = if (BuddyService.testMode)
+            "chaos test mode: ON" else "chaos test mode (1h, no limits)"
 
         status.text = when {
             !overlay -> "buddy needs the overlay permission to exist here."
@@ -139,6 +170,38 @@ class MainActivity : Activity() {
         if (!serviceRunning()) return
         startService(Intent(this, BuddyService::class.java)
             .putExtra("emit", event).putExtra("payload", payload.toString()))
+    }
+
+    private fun cmdToService(cmd: String) {
+        if (!serviceRunning()) return
+        startService(Intent(this, BuddyService::class.java).putExtra("cmd", cmd))
+    }
+
+    private fun talkDialog() {
+        val input = android.widget.EditText(this).apply { hint = "say something to buddy" }
+        android.app.AlertDialog.Builder(this)
+            .setTitle("talk to buddy")
+            .setView(input)
+            .setPositiveButton("send") { _, _ ->
+                val text = input.text.toString().trim()
+                if (text.isNotEmpty()) emitToService("chat", JSONObject().put("text", text))
+            }
+            .setNegativeButton("cancel", null)
+            .show()
+    }
+
+    private fun testsDialog() {
+        val tests = try {
+            val arr = org.json.JSONArray(File(filesDir, "brain/tests.json").readText())
+            (0 until arr.length()).map { arr.getJSONObject(it) }
+        } catch (e: Exception) { emptyList() }
+        if (tests.isEmpty()) return
+        android.app.AlertDialog.Builder(this)
+            .setTitle("test interactions")
+            .setItems(tests.map { it.optString("title", it.optString("id")) }.toTypedArray()) { _, i ->
+                emitToService("test:${tests[i].optString("id")}", JSONObject())
+            }
+            .show()
     }
 
     private fun header(text: String) = TextView(this).apply {
