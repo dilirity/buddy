@@ -21,11 +21,11 @@ function tryDJ(announce) {
 }
 
 // Bored + silence = jazz hands.
-buddy.every(300000, () => {
-  if (!can("music")) return;
-  if (state.busy || buddy.isFrozen() || buddy.isHeld() || state.mood === "sleepy") return;
-  if (!chance(buddy.traits.get("energy") * 0.15)) return;
-  tryDJ(false);
+registerAct("dj", {
+  minGap: 900000,
+  caps: ["music"],
+  weight: () => buddy.traits.get("energy") * 0.4,
+  run: () => tryDJ(false),
 });
 
 buddy.on("test:dj", () => tryDJ(true));

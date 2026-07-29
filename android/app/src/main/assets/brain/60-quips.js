@@ -37,13 +37,14 @@ buddy.on("claude:Stop", () => {
 });
 
 // Facts when bored.
-buddy.every(180000, () => {
-  if (state.busy) return;
-  if (buddy.isFrozen() || state.mood === "sleepy") return;
-  if (!chance(0.25 * buddy.traits.get("chattiness"))) return;
-  buddy.play("scheming");
-  sayFact(7);
-  buddy.after(4000, () => buddy.play("idle"));
+registerAct("fact", {
+  minGap: 300000,
+  weight: () => buddy.traits.get("chattiness") * 0.5,
+  run: () => {
+    buddy.play("scheming");
+    sayFact(7);
+    buddy.after(4000, () => buddy.play("idle"));
+  },
 });
 
 // Poke it enough times, get a reference.

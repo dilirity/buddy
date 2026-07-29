@@ -127,3 +127,45 @@ buddy.on("brainDamaged", (e) => {
 buddy.on("unfrozen", () => {
   sayLine("unfrozen", 4);
 });
+
+
+// ---- The act scheduler ----
+// Ambient behaviors REGISTER here instead of racing independent timers for
+// state.busy - the loudest timer used to starve everyone else (clingy at 20s
+// drowned out chatter and mischief). One ticker picks fairly: trait-weighted,
+// per-act cooldowns, and never the same act twice in a row.
+globalThis._acts = {};
+globalThis.registerAct = function (name, spec) {
+  _acts[name] = Object.assign({ lastRun: 0 }, spec);
+};
+
+buddy.every(15000, () => {
+  if (state.busy || state.evolving || buddy.isFrozen() || buddy.isHeld()) return;
+  if (buddy.isMoving() || state.mood === "sleepy") return;
+  const now = Date.now();
+  const last = buddy.memory.get("lastAct") || "";
+  const eligible = [];
+  for (const name in _acts) {
+    const a = _acts[name];
+    if (a.caps && !a.caps.every(can)) continue;
+    if (now - a.lastRun < (a.minGap || 120000)) continue;
+    if (name === last && Object.keys(_acts).length > 1) continue;
+    const w = a.weight ? a.weight() : 0.5;
+    if (w > 0) eligible.push([name, w]);
+  }
+  if (!eligible.length) return;
+  const total = eligible.reduce((s, e) => s + e[1], 0);
+  // Global pacing: even with everything maxed, roughly one act a minute.
+  if (!chance(Math.min(0.4, total * 0.1))) return;
+  let r = Math.random() * total;
+  for (const [name, w] of eligible) {
+    r -= w;
+    if (r <= 0) {
+      _acts[name].lastRun = now;
+      buddy.memory.set("lastAct", name);
+      buddy.log("act: " + name);
+      _acts[name].run();
+      return;
+    }
+  }
+});

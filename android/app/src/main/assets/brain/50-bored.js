@@ -1,4 +1,6 @@
-// Idle life: sleeping, clinging, chatter, and rare cursor mischief.
+// Idle life: sleeping, visits, mischief, chatter - all as registered acts so
+// the scheduler keeps them fair. No behavior owns a timer; the scheduler owns
+// the tempo.
 buddy.on("idle", () => {
   if (state.busy) return;
   setMood("sleepy", "sleep");
@@ -11,45 +13,45 @@ buddy.on("active", () => {
 });
 
 // Clingy: staged visit - walk over, deliver a heart, settle down.
-buddy.every(20000, () => {
-  if (!can("cursor")) return;
-  if (buddy.isHeld() || buddy.isFrozen() || state.mood === "sleepy") return;
-  if (buddy.isMoving() || state.busy) return;
-  if (!chance(buddy.traits.get("clinginess") * 0.4)) return;
-  // Vary the arrival: heart only, line only, or the full production.
-  const roll = Math.random();
-  const arrive =
-    roll < 0.4 ? { anim: "excited", prop: "heart", ms: 2600 }
-    : roll < 0.7 ? { anim: "excited", line: "clingyArrive", secs: 3, ms: 2600 }
-    : { anim: "excited", line: "clingyArrive", secs: 3, prop: "heart", ms: 2600 };
-  // Pick the side with room; coin flip only when both fit.
-  const c = buddy.cursor.pos();
-  const s = buddy.screen();
-  const side = c.x > s.x + s.w - 160 ? -70 : c.x < s.x + 160 ? 70 : chance(0.5) ? 70 : -70;
-  runAct([
-    { anim: "walk", approach: { speed: 160, dx: side, dy: 0 }, until: "arrived" },
-    arrive,
-    { anim: "idle" },
-  ]);
+registerAct("clingy", {
+  minGap: 120000,
+  caps: ["cursor"],
+  weight: () => buddy.traits.get("clinginess") * 0.8,
+  run: () => {
+    const c = buddy.cursor.pos();
+    const s = buddy.screen();
+    const side = c.x > s.x + s.w - 160 ? -70 : c.x < s.x + 160 ? 70 : chance(0.5) ? 70 : -70;
+    const roll = Math.random();
+    const arrive =
+      roll < 0.4 ? { anim: "excited", prop: "heart", ms: 2600 }
+      : roll < 0.7 ? { anim: "excited", line: "clingyArrive", secs: 3, ms: 2600 }
+      : { anim: "excited", line: "clingyArrive", secs: 3, prop: "heart", ms: 2600 };
+    runAct([
+      { anim: "walk", approach: { speed: 160, dx: side, dy: 0 }, until: "arrived" },
+      arrive,
+      { anim: "idle" },
+    ]);
+  },
 });
 
 // Mischief: cursor nudges and full heists. Native invariants rate-limit both.
 let stealing = false;
 
-buddy.every(120000, () => {
-  if (!can("cursor")) return;
-  if (buddy.isHeld() || buddy.isFrozen() || state.mood === "sleepy") return;
-  if (buddy.isMoving() || state.busy) return;
-  if (!chance(buddy.traits.get("mischief") * 0.25)) return;
-  if (chance(0.5)) {
-    const c = buddy.cursor.pos();
-    const ok = buddy.cursor.warp(c.x + (Math.random() * 120 - 60), c.y + (Math.random() * 120 - 60));
-    if (ok) {
-      buddy.play("scheming");
-      if (chance(0.5)) buddy.say("hehe", 2);
-      buddy.after(2000, () => buddy.play("idle"));
+registerAct("mischief", {
+  minGap: 300000,
+  caps: ["cursor"],
+  weight: () => buddy.traits.get("mischief") * 0.7,
+  run: () => {
+    if (chance(0.5)) {
+      const c = buddy.cursor.pos();
+      const ok = buddy.cursor.warp(c.x + (Math.random() * 120 - 60), c.y + (Math.random() * 120 - 60));
+      if (ok) {
+        buddy.play("scheming");
+        if (chance(0.5)) buddy.say("hehe", 2);
+        buddy.after(2000, () => buddy.play("idle"));
+      }
+      return;
     }
-  } else {
     // The heist, staged: prepare (scheme, announce), then lunge at the live cursor.
     stealing = true;
     state.busy = true;
@@ -62,15 +64,15 @@ buddy.every(120000, () => {
     });
     // Safety: never leave busy stuck if the chase gets cancelled mid-flight.
     buddy.after(15000, () => {
-      if (stealing) { stealing = false; state.busy = false; }
+      if (stealing) { stealing = false; state.busy = state.evolving === true; }
     });
-  }
+  },
 });
 
 buddy.on("gaveUp", () => {
   if (!stealing) return;
   stealing = false;
-  state.busy = false;
+  state.busy = state.evolving === true;
   sayLine("gaveUp", 4);
   buddy.play("idle");
 });
@@ -78,7 +80,7 @@ buddy.on("gaveUp", () => {
 buddy.on("caught", () => {
   if (!stealing) return;
   stealing = false;
-  state.busy = false;
+  state.busy = state.evolving === true;
   if (!buddy.cursor.grab(4)) return;
   buddy.play("scheming");
   sayLine("heist", 3);
@@ -92,17 +94,18 @@ buddy.on("caught", () => {
 });
 
 // Idle chatter.
-buddy.every(60000, () => {
-  if (buddy.isFrozen() || state.mood === "sleepy") return;
-  const c = buddy.traits.get("chattiness");
-  if (!chance(c * 0.2)) return;
-  if (chance(buddy.traits.get("weirdness") * 0.5)) {
-    buddy.think("Say one short weird non-sequitur a tiny pixel goblin might say.", (t) => {
-      if (t) buddy.say(t, 4);
-    });
-  } else {
-    sayLine("chatter", 4);
-  }
+registerAct("chatter", {
+  minGap: 150000,
+  weight: () => buddy.traits.get("chattiness") * 0.6,
+  run: () => {
+    if (can("think") && chance(buddy.traits.get("weirdness") * 0.5)) {
+      buddy.think("Say one short weird non-sequitur a tiny pixel goblin might say.", (t) => {
+        if (t) buddy.say(t, 4);
+      });
+    } else {
+      sayLine("chatter", 4);
+    }
+  },
 });
 
 buddy.on("appChanged", (e) => {
