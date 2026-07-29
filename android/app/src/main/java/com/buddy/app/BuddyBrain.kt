@@ -67,17 +67,21 @@ class BuddyBrain(private val appContext: Context, private val shell: Shell) {
         }
     }
 
-    // Seed bundled brain files once; never overwrite an existing (possibly
-    // synced/evolved) file - same rule as the mac installer.
+    // Seed bundled brain files. Unlike the mac, nothing evolves ON the phone:
+    // bundled .js/.json are authoritative and overwrite stale copies when they
+    // differ. .md files (feedback the phone wrote) are only created, never
+    // replaced - they carry Pete's words.
     private fun seedBrainFromAssets() {
         brainDir.mkdirs()
         val assets = appContext.assets
         for (name in assets.list("brain") ?: emptyArray()) {
             val dst = File(brainDir, name)
-            if (!dst.exists()) {
-                assets.open("brain/$name").use { input ->
-                    dst.outputStream().use { input.copyTo(it) }
-                }
+            val bundled = assets.open("brain/$name").use { it.readBytes() }
+            val isCode = name.endsWith(".js") || name.endsWith(".json")
+            val stale = isCode && dst.exists() && !dst.readBytes().contentEquals(bundled)
+            if (!dst.exists() || stale) {
+                dst.writeBytes(bundled)
+                if (stale) Log.i(TAG, "seed: refreshed $name")
             }
         }
     }

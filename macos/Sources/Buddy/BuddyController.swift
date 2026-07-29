@@ -112,6 +112,7 @@ final class BuddyController: NSObject, SpriteViewDelegate {
             if let traits = payload["traits"] as? [String: Double] {
                 for (name, value) in traits { _ = Traits.setValue(name, to: value) }
             }
+            self.resetPresentation()
             self.panel.orderFrontRegardless()
             self.play("excited")
             if let line = payload["line"] as? String { self.say(line, seconds: 5) }
@@ -449,6 +450,16 @@ final class BuddyController: NSObject, SpriteViewDelegate {
         }
     }
 
+    // Baseline presentation. Acts fade/hide/dress buddy and promise to undo it
+    // later - but brain continuity can break mid-act (hot reload, travel,
+    // freeze), stranding native state like a 0.15 alpha. At every continuity
+    // break the SHELL restores the baseline; JS promises are not load-bearing.
+    func resetPresentation() {
+        setOpacity(1)
+        setLayer(behind: false)
+        setProp(nil)
+    }
+
     // Clamped so buddy can never turn fully invisible; auto-restores.
     func setOpacity(_ value: Double) {
         let v = max(0.15, min(1.0, value))
@@ -607,9 +618,7 @@ final class BuddyController: NSObject, SpriteViewDelegate {
         frozenUntil = Date().addingTimeInterval(TimeInterval(minutes * 60))
         stopMoving()
         bubble.hide()
-        setProp(nil)
-        setLayer(behind: false)
-        setOpacity(1)
+        resetPresentation()
         currentAnim = ""
         pendingAnim = nil
         play("sleep")
@@ -643,7 +652,7 @@ final class BuddyController: NSObject, SpriteViewDelegate {
         }
         currentAnim = ""
         pendingAnim = nil
-        setProp(nil)
+        resetPresentation()
         brain.reload()
         rebuildTestMenu()
         play("idle")
