@@ -285,7 +285,7 @@ class BuddyBrain(private val appContext: Context, private val shell: Shell) {
         // Memory: persisted JSON key-value, mirrors ~/.buddy/memory.json.
         val mem = c.createNewJSObject()
         mem.setProperty("get", jsFn("get") { args ->
-            val v = memory.opt(args[0] as String) ?: return@JSCallFunction null
+            val v = memory.opt(args[0] as String) ?: return@jsFn null
             when (v) {
                 is JSONObject -> c.parseJSON(v.toString())
                 is org.json.JSONArray -> c.parseJSON(v.toString())
@@ -306,9 +306,9 @@ class BuddyBrain(private val appContext: Context, private val shell: Shell) {
         buddy.setProperty("data", jsFn("data") { args ->
             val name = args[0] as String
             if (name.contains("/") || name.contains("..") || !name.endsWith(".json"))
-                return@JSCallFunction null
+                return@jsFn null
             val f = File(brainDir, name)
-            if (!f.exists()) return@JSCallFunction null
+            if (!f.exists()) return@jsFn null
             try { c.parseJSON(f.readText()) } catch (e: Exception) { null }
         })
 
