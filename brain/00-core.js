@@ -43,8 +43,9 @@ globalThis.sayLine = (key, secs, prop) => {
 //   anim: "name"                      play an animation
 //   line: "poolKey" / say: "text"     speak (secs, prop ride along)
 //   prop: "name"                      worn via the spoken line, or bare
-//   moveTo: {x, y, speed}             walk somewhere
-//   chase: speed                      pursue the live cursor
+//   moveTo: {x, y, speed}             walk somewhere (fixed point)
+//   approach: {speed, dx, dy}         walk to the LIVE cursor + offset
+//   chase: speed                      pursue and catch the live cursor
 //   ms: 800                           how long the step lasts (default 800)
 //   until: "event" | ["e1","e2"]      instead of ms, wait for an event
 //   until: {event: [steps...]}        branch: run that path, then finish
@@ -78,6 +79,7 @@ globalThis.runAct = function (steps, done) {
       bareProp = true;
     }
     if (s.chase) buddy.chase(s.chase);
+    if (s.approach) buddy.approach(s.approach.speed || 200, s.approach.dx || 0, s.approach.dy || 0);
     if (s.moveTo) buddy.moveTo(s.moveTo.x, s.moveTo.y, s.moveTo.speed || 160);
     if (s.until) {
       let fired = false;

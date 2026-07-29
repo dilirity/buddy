@@ -81,9 +81,8 @@ buddy.on("caught", () => {
 });
 
 buddy.on("test:clingy", () => {
-  const c = buddy.cursor.pos();
   runAct([
-    { anim: "walk", moveTo: { x: c.x + 40, y: c.y - 60, speed: 220 }, until: "arrived" },
+    { anim: "walk", approach: { speed: 220, dx: 70, dy: 0 }, until: "arrived" },
     { anim: "excited", line: "clingyArrive", secs: 3, prop: "heart", ms: 2600 },
     { anim: "idle" },
   ]);

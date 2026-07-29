@@ -27,6 +27,10 @@ final class BuddyController: NSObject, SpriteViewDelegate {
     private var moveTimer: Timer?
     private var chasing = false
     private var chaseDeadline = Date()
+    private var chaseOffset = CGPoint.zero
+    // approach = live-track the cursor but arrive beside it (emits "arrived");
+    // chase = catch it exactly (emits "caught"/"gaveUp").
+    private var approachMode = false
 
     private(set) var held = false
     private var frozenUntil: Date?
@@ -202,6 +206,22 @@ final class BuddyController: NSObject, SpriteViewDelegate {
         guard !held, !isFrozen, !evolving else { return }
         moveTarget = nil
         chasing = true
+        approachMode = false
+        chaseOffset = .zero
+        chaseDeadline = Date().addingTimeInterval(10)
+        moveSpeed = CGFloat(speed)
+        startMoveTimer()
+    }
+
+    // Live cursor-relative movement: buddy's center lands at cursor + offset,
+    // retargeting every frame. The shared primitive for every "go to the
+    // cursor-ish" behavior - snapshots of a moving cursor are always wrong.
+    func approachCursor(speed: Double, dx: Double, dy: Double) {
+        guard !held, !isFrozen, !evolving else { return }
+        moveTarget = nil
+        chasing = true
+        approachMode = true
+        chaseOffset = CGPoint(x: dx, y: dy)
         chaseDeadline = Date().addingTimeInterval(10)
         moveSpeed = CGFloat(speed)
         startMoveTimer()
@@ -219,6 +239,7 @@ final class BuddyController: NSObject, SpriteViewDelegate {
         moveTimer = nil
         moveTarget = nil
         chasing = false
+        approachMode = false
     }
 
     private func stepMove() {
@@ -230,12 +251,16 @@ final class BuddyController: NSObject, SpriteViewDelegate {
         let target: NSPoint
         if chasing {
             if Date() > chaseDeadline {
+                let wasApproach = approachMode
                 stopMoving()
-                brain.emit("gaveUp")
+                // A best-effort visit that ran out of time still "arrives";
+                // only a failed catch is a gaveUp.
+                brain.emit(wasApproach ? "arrived" : "gaveUp")
                 return
             }
             let m = NSEvent.mouseLocation
-            target = NSPoint(x: m.x - size.width / 2, y: m.y - size.height * 0.4)
+            target = NSPoint(x: m.x + chaseOffset.x - size.width / 2,
+                             y: m.y + chaseOffset.y - (approachMode ? size.height / 2 : size.height * 0.4))
         } else if let t = moveTarget {
             target = t
         } else {
@@ -247,9 +272,9 @@ final class BuddyController: NSObject, SpriteViewDelegate {
         let dy = target.y - origin.y
         let dist = hypot(dx, dy)
         if dist < (chasing ? 16 : 4) {
-            let wasChasing = chasing
+            let event = chasing && !approachMode ? "caught" : "arrived"
             stopMoving()
-            brain.emit(wasChasing ? "caught" : "arrived")
+            brain.emit(event)
             return
         }
         let step = min(dist, moveSpeed / 60)

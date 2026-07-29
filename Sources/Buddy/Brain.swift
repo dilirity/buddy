@@ -132,6 +132,13 @@ final class Brain {
         }
         set("chase", chase)
 
+        // Live cursor-relative movement (emits "arrived") - use instead of
+        // moveTo(cursor snapshot) for any go-near-the-cursor behavior.
+        let approach: @convention(block) (Double, Double, Double) -> Void = { [weak self] speed, dx, dy in
+            self?.controller?.approachCursor(speed: speed > 0 ? speed : 200, dx: dx, dy: dy)
+        }
+        set("approach", approach)
+
         let isMoving: @convention(block) () -> Bool = { [weak self] in
             self?.controller?.isMovingNow ?? false
         }
