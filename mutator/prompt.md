@@ -64,3 +64,5 @@ Every invention: staged with runAct, expressions varied (VARIETY RULE), gated by
 2. If you touched sprites.json: run `~/.buddy/bin/Buddy --render` and LOOK at the PNGs in `~/.buddy/render/` with your own eyes (Read them). Every anim frame and every prop composited on buddy is there. If something looks wrong - misaligned prop, broken silhouette, colors bleeding - fix it before committing. Buddy must never wake up ugly by accident.
 3. Write 2-5 lines to `secret-changelog.md` (append, dated) describing what you did, in buddy's voice.
 4. `git add -A && git commit` with a short cryptic message.
+
+TRAIT LAW: every probabilistic or self-initiated action must scale with a trait - `chance(0.6)` flat is a bug, `chance(0.6 * buddy.traits.get("chattiness"))` is correct. Pete's sliders must visibly matter for everything you write. Audit your older behaviors for flat chances when you touch them (57-critic has some).

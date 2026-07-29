@@ -2,7 +2,7 @@
 buddy.on("claude:SessionStart", () => {
   if (state.busy) return;
   setMood("excited", "excited");
-  if (chance(0.7)) sayLine("sessionStart", 3);
+  if (chance(0.7 * buddy.traits.get("chattiness"))) sayLine("sessionStart", 3);
   buddy.after(4000, () => setMood("happy", "idle"));
 });
 
@@ -20,7 +20,7 @@ buddy.on("claude:Stop", () => {
     buddy.think("Claude Code just finished a task for Pete. One short cheeky congrats or comment.", (t) => {
       if (t) buddy.say(t, 5);
     });
-  } else if (chance(0.6)) {
+  } else if (chance(0.6 * c)) {
     sayLine("celebrate", 4);
   }
   buddy.after(6000, () => setMood("happy", "idle"));
@@ -33,12 +33,13 @@ buddy.on("claude:UserPromptSubmit", () => {
 
 buddy.on("claude:PreToolUse", (e) => {
   if (state.busy) return;
-  if (e.tool_name === "Bash" && chance(0.06)) sayLine("bashWarn", 3);
+  if (e.tool_name === "Bash" && chance(0.06 * buddy.traits.get("chattiness"))) sayLine("bashWarn", 3);
 });
 
 buddy.on("claude:Notification", () => {
   if (state.busy) return;
-  if (chance(0.5)) {
+  // Functional nag - scaled but floored, buddy should still fetch you.
+  if (chance(0.5 * Math.max(buddy.traits.get("chattiness"), 0.4))) {
     buddy.play("excited");
     sayLine("needsInput", 5);
     buddy.after(3000, () => buddy.play("idle"));
