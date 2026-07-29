@@ -16,5 +16,6 @@
 - Play behavior: a toy entity (ball?) - second small panel with simple physics buddy can chase, carry, drop near the cursor. New native object + verbs (`buddy.toy.drop(x, y)`, events `toyCaught`). Design so the mutator can invent games with it.
 
 ## Misc
+- Eye tracking: if data-driven directional look frames (mutator's job) feel too coarse, add a native pupil overlay layer that offsets toward the cursor continuously.
 - Chat: dedicated "think" animation slot (brain-side once sprites.json has one - shell needs nothing).
 - Repetition: pickFresh covers lines; behaviors themselves repeat - mutator mandate covers, watch if it needs mechanical help (per-behavior cooldowns in core).
