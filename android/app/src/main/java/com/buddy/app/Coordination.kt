@@ -44,6 +44,8 @@ class Coordination(context: Context, private val onUi: Handler = Handler(Looper.
     // Crash election: the mac (the only non-phone peer) owned buddy and went
     // silent past the timeout. Payload = last replicated snapshot.
     var onEmergencyClaim: ((JSONObject) -> Unit)? = null
+    // Every replicated state snapshot from the owner (traits sync etc).
+    var onSnapshot: ((JSONObject) -> Unit)? = null
 
     private val appContext = context
     private val nsd = context.getSystemService(Context.NSD_SERVICE) as NsdManager
@@ -209,7 +211,10 @@ class Coordination(context: Context, private val onUi: Handler = Handler(Looper.
                     }
                     "claim", "state" -> {
                         if (type == "state") {
-                            frame.optJSONObject("payload")?.let { lastSnapshot = it }
+                            frame.optJSONObject("payload")?.let {
+                                lastSnapshot = it
+                                onUi.post { onSnapshot?.invoke(it) }
+                            }
                         }
                         val theyOwn = if (type == "claim") true else frame.optBoolean("owner", false)
                         val theirRank = rankOf(frame.optString("from"))

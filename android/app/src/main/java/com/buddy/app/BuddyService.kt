@@ -81,6 +81,11 @@ class BuddyService : Service() {
         }
         // Mac crashed while owning buddy: resume from the last replicated
         // snapshot with emergency-arrival fiction.
+        // Owner's periodic snapshots keep the phone's traits (and their
+        // bounds) in sync even when buddy has never visited.
+        coordination.onSnapshot = { snapshot ->
+            snapshot.optJSONObject("traitSpecs")?.let { Traits.replaceSpecs(this, it) }
+        }
         coordination.onEmergencyClaim = { snapshot ->
             snapshot.optJSONObject("traitSpecs")?.let { Traits.replaceSpecs(this, it) }
                 ?: snapshot.optJSONObject("traits")?.let { Traits.replaceAll(this, it) }
