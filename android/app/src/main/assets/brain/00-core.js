@@ -20,6 +20,14 @@ globalThis.pickFresh = (arr) => {
   return pick(arr);
 };
 
+// Device capability check - shells report what is real on this device
+// (buddy.caps()); missing caps() means an older shell: assume everything.
+globalThis.can = (k) => {
+  if (!buddy.caps) return true;
+  const m = buddy.caps();
+  return !m || m[k] !== false;
+};
+
 globalThis.setMood = function (mood, anim) {
   state.mood = mood;
   if (anim) buddy.play(anim);

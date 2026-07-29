@@ -27,6 +27,21 @@ globalThis.handleChatMessage = function (text, source) {
     return;
   }
 
+  // No thinking hardware here (phone): stay charming, skip the LLM.
+  if (!can("think")) {
+    const log = buddy.memory.get("chatLog") || [];
+    const reply = pickFresh([
+      "small brain mode. my big thoughts live on the mac",
+      "im cute here but dumb. ask me at the mac",
+      "no deep thoughts on this tiny rock. but hi",
+    ]);
+    deliver(reply, 6);
+    log.push({ q: (phone ? "[phone] " : "") + text, a: reply });
+    buddy.memory.set("chatLog", log.slice(-20));
+    buddy.after(2500, () => buddy.play("idle"));
+    return;
+  }
+
   const log = buddy.memory.get("chatLog") || [];
   const recent = log.slice(-6).map((x) => "pete: " + x.q + "\nbuddy: " + x.a).join("\n");
   const grudges = buddy.memory.get("grudges") || 0;

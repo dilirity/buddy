@@ -12,6 +12,7 @@ buddy.on("active", () => {
 
 // Clingy: staged visit - walk over, deliver a heart, settle down.
 buddy.every(20000, () => {
+  if (!can("cursor")) return;
   if (buddy.isHeld() || buddy.isFrozen() || state.mood === "sleepy") return;
   if (buddy.isMoving() || state.busy) return;
   if (!chance(buddy.traits.get("clinginess") * 0.4)) return;
@@ -36,6 +37,7 @@ buddy.every(20000, () => {
 let stealing = false;
 
 buddy.every(120000, () => {
+  if (!can("cursor")) return;
   if (buddy.isHeld() || buddy.isFrozen() || state.mood === "sleepy") return;
   if (buddy.isMoving() || state.busy) return;
   if (!chance(buddy.traits.get("mischief") * 0.25)) return;

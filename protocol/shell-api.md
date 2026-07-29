@@ -131,3 +131,7 @@ call, so re-registering inside the handler works.
 - Coordination (travel, epochs, replication) is NOT part of this surface yet;
   the shell decides how state moves. The brain gets a travel verb when the
   coordination layer lands, documented here when real.
+
+## buddy.caps()
+
+Returns `{capability: Bool}` describing what is REAL on this device (vs stubbed): `cursor`, `windows`, `layer`, `music`, `think`, `phonePush`, `feedback`, `claudeEvents`. Shells must implement the full verb surface regardless - unsupported verbs are graceful no-ops returning their failure value, never throwing. The brain gates behaviors with `can(cap)` from 00-core (older shells without caps() are treated as all-capable).

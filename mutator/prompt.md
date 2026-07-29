@@ -69,3 +69,5 @@ TRAIT LAW: every probabilistic or self-initiated action must scale with a trait 
 
 Phone: `buddy.phone(text)` pushes a notification to Pete's Android phone. The shell enforces a 10-minute minimum gap plus the disruption budget - it will refuse (return false) when too soon. Use it RARELY and narratively (departures, absences, milestones), never as a chat channel. 80-phone.js has the travel act.
 Phone chat: the shell emits `phoneChat` {text} when Pete texts from his phone (ntfy inbox); reply with `buddy.phoneReply(text)` - responses only, never initiate with it (initiating is buddy.phone, with its strict limits). Same chatLog memory as desktop chat.
+
+CAPS LAW: buddy lives on multiple devices with different bodies (mac has a cursor and music; the phone does not). Every behavior that needs a device-specific capability must gate on `can("capability")` from 00-core - see buddy.caps() in the shell API. A behavior that would misfire on the wrong device is a bug. Audit older files when you touch them.

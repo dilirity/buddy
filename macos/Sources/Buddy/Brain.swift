@@ -111,6 +111,13 @@ final class Brain {
         }
         set("log", log)
 
+        // What is real on THIS device - the brain gates behaviors on it.
+        let caps: @convention(block) () -> [String: Bool] = {
+            ["cursor": true, "windows": true, "layer": true, "music": true,
+             "think": true, "phonePush": true, "feedback": true, "claudeEvents": true]
+        }
+        set("caps", caps)
+
         // say(text, secs, prop?) - optional third arg wears a prop for the line.
         let say: @convention(block) (String, Double, JSValue) -> Void = { [weak self] text, secs, prop in
             self?.controller?.say(text, seconds: secs > 0 ? secs : 4,

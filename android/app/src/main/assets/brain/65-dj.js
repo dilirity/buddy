@@ -1,6 +1,10 @@
 // DJ buddy: mood-driven music. Etiquette is law: never stomp music that is
 // already playing - check status first, always.
 function tryDJ(announce) {
+  if (!can("music")) {
+    if (announce) buddy.say("no music powers on this device", 4);
+    return;
+  }
   buddy.music.status((s) => {
     if (s.state === "playing") {
       if (announce) sayLine("djAlready", 3);
@@ -18,6 +22,7 @@ function tryDJ(announce) {
 
 // Bored + silence = jazz hands.
 buddy.every(300000, () => {
+  if (!can("music")) return;
   if (state.busy || buddy.isFrozen() || buddy.isHeld() || state.mood === "sleepy") return;
   if (!chance(buddy.traits.get("energy") * 0.15)) return;
   tryDJ(false);

@@ -32,6 +32,7 @@ buddy.on("test:thinkLine", () => {
 });
 
 buddy.on("test:nudge", () => {
+  if (!can("cursor")) { buddy.say("no cursor on this device", 4); return; }
   const c = buddy.cursor.pos();
   if (buddy.cursor.warp(c.x + 60, c.y + 60)) {
     buddy.play("scheming");
@@ -44,6 +45,7 @@ buddy.on("test:nudge", () => {
 
 let testStealing = false;
 buddy.on("test:heist", () => {
+  if (!can("cursor")) { buddy.say("nothing to steal here. tragic", 4); return; }
   testStealing = true;
   state.busy = true;
   buddy.play("scheming");
