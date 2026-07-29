@@ -1,0 +1,70 @@
+[
+  {
+    "id": "sessionStart",
+    "title": "Session start cheer"
+  },
+  {
+    "id": "celebrate",
+    "title": "Turn-done celebration"
+  },
+  {
+    "id": "needsInput",
+    "title": "Claude-needs-you nag"
+  },
+  {
+    "id": "promptJudge",
+    "title": "Prompt judgment"
+  },
+  {
+    "id": "fact",
+    "title": "Random fact"
+  },
+  {
+    "id": "reference",
+    "title": "TV reference"
+  },
+  {
+    "id": "thinkLine",
+    "title": "AI one-liner (calls claude)"
+  },
+  {
+    "id": "nudge",
+    "title": "Cursor nudge"
+  },
+  {
+    "id": "heist",
+    "title": "Cursor heist"
+  },
+  {
+    "id": "sleep",
+    "title": "Fall asleep"
+  },
+  {
+    "id": "wake",
+    "title": "Wake up"
+  },
+  {
+    "id": "grudge",
+    "title": "Trait-change sass"
+  },
+  {
+    "id": "clingy",
+    "title": "Clingy visit (heart)"
+  },
+  {
+    "id": "walk",
+    "title": "Walk somewhere"
+  },
+  {
+    "id": "dj",
+    "title": "DJ: play music"
+  },
+  {
+    "id": "djStop",
+    "title": "DJ: stop the music"
+  },
+  {
+    "id": "visitPhone",
+    "title": "Visit Pete's phone"
+  }
+]

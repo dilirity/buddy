@@ -20,7 +20,15 @@ class Coordination(context: Context, private val onUi: Handler = Handler(Looper.
         const val SECRET = "buddy-doorknob"
         const val SERVICE_TYPE = "_buddy._tcp."
         const val PORT = 47800
+        const val HB_PORT = 47801
+        const val SILENCE_MS = 15_000L
         const val TAG = "BuddyCoord"
+
+        fun rankOf(deviceId: String): Int = when (deviceId) {
+            "mac" -> 1
+            "phone" -> 2
+            else -> 9
+        }
     }
 
     private val prefs = context.getSharedPreferences("coordination", Context.MODE_PRIVATE)
@@ -33,12 +41,24 @@ class Coordination(context: Context, private val onUi: Handler = Handler(Looper.
 
     var onArrive: ((JSONObject) -> Unit)? = null
     var onDepart: (() -> Unit)? = null
+    // Crash election: the mac (the only non-phone peer) owned buddy and went
+    // silent past the timeout. Payload = last replicated snapshot.
+    var onEmergencyClaim: ((JSONObject) -> Unit)? = null
 
+    private val appContext = context
     private val nsd = context.getSystemService(Context.NSD_SERVICE) as NsdManager
     private var server: ServerSocket? = null
     @Volatile private var peerHost: String? = null
     @Volatile private var peerPort: Int = 0
     @Volatile private var running = true
+
+    // Liveness (mesh heartbeats per coordination.md)
+    @Volatile private var macLastSeen = 0L
+    @Volatile private var macOwns = false
+    @Volatile private var macEpoch = 0
+    private var lastSnapshot: JSONObject
+        get() = try { JSONObject(prefs.getString("snapshot", "{}") ?: "{}") } catch (e: Exception) { JSONObject() }
+        set(v) { prefs.edit().putString("snapshot", v.toString()).apply() }
 
     fun start() {
         server = ServerSocket(PORT)
@@ -83,11 +103,83 @@ class Coordination(context: Context, private val onUi: Handler = Handler(Looper.
             override fun onStartDiscoveryFailed(t: String, e: Int) { Log.w(TAG, "discovery failed $e") }
             override fun onStopDiscoveryFailed(t: String, e: Int) {}
         })
+
+        startHeartbeats()
     }
 
     fun stop() {
         running = false
         try { server?.close() } catch (_: Exception) {}
+        try { hbSocket?.close() } catch (_: Exception) {}
+    }
+
+    // MARK: - Heartbeats + crash election
+
+    private var hbSocket: java.net.DatagramSocket? = null
+
+    private fun startHeartbeats() {
+        // Listener: track the mac's liveness and whether it owns buddy.
+        Thread {
+            try {
+                val sock = java.net.DatagramSocket(HB_PORT)
+                hbSocket = sock
+                val buf = ByteArray(4096)
+                while (running) {
+                    val packet = java.net.DatagramPacket(buf, buf.size)
+                    sock.receive(packet)
+                    val frame = try {
+                        JSONObject(String(packet.data, 0, packet.length))
+                    } catch (e: Exception) { continue }
+                    if (frame.optString("s") != SECRET) continue
+                    if (frame.optString("from") == "phone") continue
+                    macLastSeen = System.currentTimeMillis()
+                    macOwns = frame.optBoolean("owner", false)
+                    macEpoch = frame.optInt("epoch", 0)
+                }
+            } catch (e: Exception) {
+                if (running) Log.w(TAG, "hb listen: $e")
+            }
+        }.start()
+
+        // Sender + election watchdog every 3s.
+        Thread {
+            while (running) {
+                try { Thread.sleep(3000) } catch (e: Exception) { break }
+                peerHost?.let { host ->
+                    try {
+                        val frame = JSONObject()
+                            .put("v", 1).put("s", SECRET).put("from", "phone")
+                            .put("type", "heartbeat").put("epoch", epoch)
+                            .put("owner", ownsBuddy)
+                        val bytes = frame.toString().toByteArray()
+                        java.net.DatagramSocket().use {
+                            it.send(java.net.DatagramPacket(bytes, bytes.size,
+                                java.net.InetAddress.getByName(host), HB_PORT))
+                        }
+                    } catch (e: Exception) { Log.w(TAG, "hb send: $e") }
+                }
+                checkElection()
+            }
+        }.start()
+    }
+
+    // The phone is rank 2 and the mac is rank 1: an election here happens
+    // only when the mac owned buddy and crashed (silence past timeout while
+    // on the LAN). The phone going silent never triggers anything anywhere -
+    // that is the "buddy is out with Pete" rule, enforced on the mac side by
+    // taking no action on silence at all.
+    private fun checkElection() {
+        if (ownsBuddy) return
+        if (!macOwns) return
+        if (macLastSeen == 0L) return
+        if (System.currentTimeMillis() - macLastSeen < SILENCE_MS) return
+        val claimed = maxOf(epoch, macEpoch) + 1
+        epoch = claimed
+        ownsBuddy = true
+        macOwns = false
+        Log.i(TAG, "emergency claim, epoch $claimed (mac silent)")
+        val snapshot = lastSnapshot
+        onUi.post { onEmergencyClaim?.invoke(snapshot) }
     }
 
     val hasPeer: Boolean get() = peerHost != null
@@ -115,11 +207,18 @@ class Coordination(context: Context, private val onUi: Handler = Handler(Looper.
                         Log.i(TAG, "travel in, epoch $epoch")
                         onUi.post { onArrive?.invoke(payload) }
                     }
-                    "claim" -> {
-                        if (fEpoch > epoch) {
+                    "claim", "state" -> {
+                        if (type == "state") {
+                            frame.optJSONObject("payload")?.let { lastSnapshot = it }
+                        }
+                        val theyOwn = if (type == "claim") true else frame.optBoolean("owner", false)
+                        val theirRank = rankOf(frame.optString("from"))
+                        val theyWin = fEpoch > epoch || (fEpoch == epoch && theirRank < rankOf("phone"))
+                        if (theyOwn && theyWin) {
                             epoch = fEpoch
                             if (ownsBuddy) {
                                 ownsBuddy = false
+                                Log.i(TAG, "ceding ownership to ${frame.optString("from")} epoch $fEpoch")
                                 onUi.post { onDepart?.invoke() }
                             }
                         }

@@ -24,8 +24,14 @@ final class Coordination {
     private var listener: NWListener?
     private var browser: NWBrowser?
     private var peers: [String: NWEndpoint] = [:]
+    private var peerHosts: [String: String] = [:]
     private var connections: [NWConnection] = []
     private let stateURL: URL
+    private var heartbeatTimer: DispatchSourceTimer?
+    private var heartbeatSocket: NWListener?
+    // Snapshot provider set by the controller - called on main, returns the
+    // replicable state blob (traits etc). Broadcast to followers.
+    var snapshot: (() -> [String: Any])?
 
     init(deviceId: String, rank: Int, owner: Bool, listenPort: UInt16 = Coordination.port) {
         self.deviceId = deviceId
@@ -76,12 +82,106 @@ final class Coordination {
                     found[name] = r.endpoint
                 }
             }
+            let fresh = Set(found.keys).subtracting(self.peers.keys)
             self.peers = found
+            self.peerHosts = self.peerHosts.filter { found.keys.contains($0.key) }
             buddyLog("coord: peers \(Array(found.keys))")
+            for name in fresh { self.hello(name) }
         }
         b.start(queue: queue)
         browser = b
+
+        startHeartbeats(listenPort: listenPort)
         buddyLog("coord: up as \(deviceId) rank \(rank) epoch \(epoch) owner \(ownsBuddy)")
+    }
+
+    // MARK: - Heartbeats + replication
+
+    // UDP heartbeats to every peer every 3s (mesh, per coordination.md).
+    // The mac takes NO action on peer silence: the phone going quiet means
+    // "buddy is out with Pete", never death. Owner also piggybacks a state
+    // snapshot broadcast every 10th beat so followers can resume after a crash.
+    private func startHeartbeats(listenPort: UInt16) {
+        let hbPort = listenPort + 1
+        if let l = try? NWListener(using: .udp, on: NWEndpoint.Port(rawValue: hbPort)!) {
+            l.newConnectionHandler = { [weak self] conn in
+                guard let self else { return }
+                conn.start(queue: self.queue)
+                conn.receiveMessage { data, _, _, _ in
+                    // Liveness intake only; nothing acts on it on the mac.
+                    _ = data
+                    conn.cancel()
+                }
+            }
+            l.start(queue: queue)
+            heartbeatSocket = l
+        }
+        var beat = 0
+        let t = DispatchSource.makeTimerSource(queue: queue)
+        t.schedule(deadline: .now() + 3, repeating: 3)
+        t.setEventHandler { [weak self] in
+            guard let self else { return }
+            beat += 1
+            for (_, host) in self.peerHosts {
+                let conn = NWConnection(host: NWEndpoint.Host(host),
+                                        port: NWEndpoint.Port(rawValue: hbPort)!,
+                                        using: .udp)
+                conn.start(queue: self.queue)
+                var f: [String: Any] = ["type": "heartbeat", "epoch": self.epoch,
+                                        "owner": self.ownsBuddy]
+                f["v"] = 1
+                f["s"] = Coordination.secret
+                f["from"] = self.deviceId
+                if let data = try? JSONSerialization.data(withJSONObject: f) {
+                    conn.send(content: data, completion: .contentProcessed { _ in conn.cancel() })
+                }
+            }
+            if beat % 10 == 0, self.ownsBuddy {
+                self.broadcastState()
+            }
+        }
+        t.resume()
+        heartbeatTimer = t
+    }
+
+    // Full-snapshot state event to every peer (v1 replication: latest wins).
+    func broadcastState() {
+        DispatchQueue.main.async {
+            let payload = self.snapshot?() ?? [:]
+            self.queue.async {
+                for (_, endpoint) in self.peers {
+                    let conn = NWConnection(to: endpoint, using: .tcp)
+                    conn.start(queue: self.queue)
+                    self.send(["type": "state", "epoch": self.epoch, "seq": 0,
+                               "op": "snapshot", "owner": self.ownsBuddy,
+                               "payload": payload], on: conn)
+                    self.queue.asyncAfter(deadline: .now() + 2) { conn.cancel() }
+                }
+            }
+        }
+    }
+
+    // On meeting a peer: exchange hellos so a stale device learns the current
+    // epoch before doing anything (cold-start grace + zombie correction).
+    private func hello(_ name: String) {
+        guard let endpoint = peers[name] else { return }
+        let conn = NWConnection(to: endpoint, using: .tcp)
+        conn.stateUpdateHandler = { [weak self] state in
+            guard let self, case .ready = state else { return }
+            // Remember the peer's raw IP: heartbeats are UDP to host:hbPort,
+            // and cached IPs double as the discovery fallback.
+            if case let .hostPort(host, _)? = conn.currentPath?.remoteEndpoint {
+                self.peerHosts[name] = "\(host)".components(separatedBy: "%").first ?? "\(host)"
+            }
+        }
+        adoptForFrames(conn)
+        conn.start(queue: queue)
+        send(["type": "hello", "epoch": epoch], on: conn)
+    }
+
+    private func adoptForFrames(_ conn: NWConnection) {
+        connections.append(conn)
+        receiveLines(conn, buffer: Data())
     }
 
     private func adopt(_ conn: NWConnection) {
@@ -146,13 +246,19 @@ final class Coordination {
             buddyLog("coord: travel in, epoch \(epoch)")
             DispatchQueue.main.async { self.onArrive?(payload) }
 
-        case "claim":
-            // Someone else legitimately owns buddy now.
-            if fEpoch > epoch || (fEpoch == epoch && !ownsBuddy) {
+        case "claim", "state":
+            // Someone else claims/reports ownership. Higher epoch wins;
+            // equal epoch resolves by rank (lower rank wins) - the split-brain
+            // tiebreak from coordination.md.
+            let theirRank = Coordination.rank(of: frame["from"] as? String ?? "")
+            let theyOwn = (frame["owner"] as? Bool) ?? (type == "claim")
+            guard theyOwn else { break }
+            let theyWin = fEpoch > epoch || (fEpoch == epoch && theirRank < rank)
+            if theyWin {
                 epoch = fEpoch
                 if ownsBuddy {
                     ownsBuddy = false
-                    persist()
+                    buddyLog("coord: ceding ownership to \(frame["from"] ?? "?") epoch \(fEpoch)")
                     DispatchQueue.main.async { self.onDepart?() }
                 }
                 persist()
@@ -160,6 +266,14 @@ final class Coordination {
 
         default:
             break
+        }
+    }
+
+    static func rank(of deviceId: String) -> Int {
+        switch deviceId {
+        case "mac": return 1
+        case "phone": return 2
+        default: return 9
         }
     }
 

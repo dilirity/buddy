@@ -72,6 +72,7 @@ cat > "$HOME/Library/LaunchAgents/com.buddy.app.plist" <<PLIST
         <string>$HOME/.buddy/bin/Buddy</string>
     </array>
     <key>RunAtLoad</key><true/>
+    <key>ProcessType</key><string>Interactive</string>
 </dict>
 </plist>
 PLIST

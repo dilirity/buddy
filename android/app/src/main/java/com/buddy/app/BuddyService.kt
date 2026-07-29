@@ -4,43 +4,154 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
-import android.content.pm.ServiceInfo
-import android.os.Build
+import android.content.IntentFilter
 import android.os.IBinder
+import android.util.Log
 import org.json.JSONObject
+import java.io.File
 
-// Foreground service hosting the overlay buddy and the coordination client.
-// Survival hardening (boot receiver, battery exemption, ntfy wake) comes next;
-// this is the minimum that keeps Android from killing buddy mid-visit.
+// Foreground service hosting the overlay body, the QuickJS brain, the
+// coordination client, and the phone senses. The brain is the same JS the
+// mac runs; the service is just the phone-shaped shell around it.
 class BuddyService : Service() {
     private lateinit var coordination: Coordination
+    private lateinit var brain: BuddyBrain
     private var overlay: BuddyOverlay? = null
+    private val disruptions = ArrayDeque<Long>()
+    private var lastPhonePush = 0L
+
+    // Phone invariants: tighter than the mac - a buzzing phone is worse than
+    // a talking desktop. Pete-editable via files, not the mutator.
+    private var maxDisruptivePerHour = 3
 
     override fun onCreate() {
         super.onCreate()
         startForeground(1, buildNotification())
+        loadInvariants()
 
         val sheet = SpriteSheet(this)
-        overlay = BuddyOverlay(this, sheet) { sendHome() }
+        val shell = object : BuddyOverlay(
+            this, sheet,
+            onSendHome = { sendHome() },
+            onEvent = { name, payload -> brain.emit(name, payload) },
+        ) {
+            override fun phoneNotify(text: String): Boolean = pushNotification(text, hard = true)
+            override fun phoneReply(text: String): Boolean = pushNotification(text, hard = false)
+        }
+        overlay = shell
+        brain = BuddyBrain(this, shell)
+        brain.start()
 
         coordination = Coordination(this)
         coordination.onArrive = { payload ->
-            overlay?.show(payload.optString("line").takeIf { it.isNotEmpty() })
+            payload.optJSONObject("traits")?.let { Traits.replaceAll(this, it) }
+            overlay?.show(payload.optString("line").takeIf { it.isNotEmpty() }) {
+                brain.emit("travelArrived", payload)
+            }
         }
-        coordination.onDepart = { overlay?.hide() }
+        coordination.onDepart = {
+            brain.emit("travelDeparted")
+            overlay?.hide()
+        }
+        // Mac crashed while owning buddy: resume from the last replicated
+        // snapshot with emergency-arrival fiction.
+        coordination.onEmergencyClaim = { snapshot ->
+            snapshot.optJSONObject("traits")?.let { Traits.replaceAll(this, it) }
+            overlay?.show("uh. the mac just died?? im living here now") {
+                brain.emit("travelArrived", snapshot)
+            }
+        }
         coordination.start()
+
+        registerSenses()
 
         // Buddy was here when the service died (crash/reboot): resume it.
         if (coordination.ownsBuddy) {
-            overlay?.show("whoa. where was i. anyway im back")
+            overlay?.show("whoa. where was i. anyway im back") {
+                brain.emit("travelArrived", JSONObject())
+            }
         }
     }
 
-    private fun sendHome() {
-        coordination.travel(JSONObject().put("line", "im BACK. phones are small")) { ok ->
-            if (!ok) overlay?.say("hm. cant find the mac. staying here i guess", 5)
+    // MARK: - Senses (phone-native events, same buddy.on pattern)
+
+    private val senses = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            when (intent.action) {
+                Intent.ACTION_POWER_CONNECTED -> brain.emit("charging", JSONObject().put("on", true))
+                Intent.ACTION_POWER_DISCONNECTED -> brain.emit("charging", JSONObject().put("on", false))
+                Intent.ACTION_SCREEN_ON -> brain.emit("screenOn")
+                Intent.ACTION_SCREEN_OFF -> brain.emit("screenOff")
+                Intent.ACTION_USER_PRESENT -> brain.emit("unlocked")
+            }
         }
+    }
+
+    private fun registerSenses() {
+        registerReceiver(senses, IntentFilter().apply {
+            addAction(Intent.ACTION_POWER_CONNECTED)
+            addAction(Intent.ACTION_POWER_DISCONNECTED)
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_SCREEN_OFF)
+            addAction(Intent.ACTION_USER_PRESENT)
+        })
+    }
+
+    // MARK: - Travel
+
+    private fun sendHome() {
+        val payload = JSONObject()
+            .put("line", "im BACK. phones are small")
+            .put("traits", Traits.all(this))
+        coordination.travel(payload) { ok ->
+            if (!ok) overlay?.say("hm. cant find the mac. staying here i guess", 5.0, null)
+        }
+    }
+
+    // MARK: - Notifications ("buddy texting" while it lives here)
+
+    private fun allowDisruptive(): Boolean {
+        val now = System.currentTimeMillis()
+        while (disruptions.isNotEmpty() && now - disruptions.first() > 3_600_000) {
+            disruptions.removeFirst()
+        }
+        if (disruptions.size >= maxDisruptivePerHour) return false
+        disruptions.addLast(now)
+        return true
+    }
+
+    private fun pushNotification(text: String, hard: Boolean): Boolean {
+        val now = System.currentTimeMillis()
+        if (hard) {
+            if (now - lastPhonePush < 600_000) return false
+            if (!allowDisruptive()) return false
+            lastPhonePush = now
+        } else if (now - lastPhonePush < 15_000) {
+            return false
+        }
+        val nm = getSystemService(NotificationManager::class.java)
+        nm.createNotificationChannel(
+            NotificationChannel("buddy-says", "Buddy says", NotificationManager.IMPORTANCE_DEFAULT))
+        nm.notify(2, Notification.Builder(this, "buddy-says")
+            .setContentTitle("buddy")
+            .setContentText(text)
+            .setStyle(Notification.BigTextStyle().bigText(text))
+            .setSmallIcon(android.R.drawable.star_on)
+            .build())
+        return true
+    }
+
+    private fun loadInvariants() {
+        val f = File(filesDir, "invariants.json")
+        if (!f.exists()) {
+            f.writeText(JSONObject().put("maxDisruptivePerHour", 3).toString(2))
+        }
+        maxDisruptivePerHour = try {
+            JSONObject(f.readText()).optInt("maxDisruptivePerHour", 3)
+        } catch (e: Exception) { 3 }
     }
 
     private fun buildNotification(): Notification {
@@ -55,7 +166,9 @@ class BuddyService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
 
     override fun onDestroy() {
+        try { unregisterReceiver(senses) } catch (e: Exception) { Log.w("BuddyService", "$e") }
         coordination.stop()
+        brain.shutdown()
         overlay?.hide()
         super.onDestroy()
     }

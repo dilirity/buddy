@@ -1,0 +1,186 @@
+{
+  "sessionStart": [
+    "work time!!",
+    "hi claude",
+    "a session! im watching",
+    "lets gooo"
+  ],
+  "celebrate": [
+    "done!!",
+    "another one shipped",
+    "we did it. mostly claude tho",
+    "green light"
+  ],
+  "promptJudge": [
+    "good luck with that prompt",
+    "bold ask",
+    "ooh spicy",
+    "claude will love this one"
+  ],
+  "bashWarn": [
+    "careful with that shell",
+    "sudo make me a sandwich"
+  ],
+  "needsInput": [
+    "claude needs you!!",
+    "hey. HEY. claude is waiting",
+    "input required, human"
+  ],
+  "dragStart": [
+    "hey!! put me down",
+    "wheee",
+    "i can walk you know",
+    "kidnapping. this is kidnapping"
+  ],
+  "dragEnd": [
+    "dizzy...",
+    "i liked the old spot better",
+    "ok. new home."
+  ],
+  "poked": [
+    "hi",
+    "poke me again. i dare you",
+    "that tickles",
+    "yes?"
+  ],
+  "wake": [
+    "welcome back",
+    "i saw nothing",
+    "i was NOT sleeping"
+  ],
+  "unfrozen": [
+    "im awake!! what did i miss",
+    "that nap was not voluntary",
+    "back online"
+  ],
+  "chatter": [
+    "so. whatcha doing",
+    "i live on your screen now",
+    "pixel life is good",
+    "have you hydrated"
+  ],
+  "clingyArrive": [
+    "hi. im here now",
+    "just checking on you",
+    "dont mind me. i live here",
+    "you looked lonely"
+  ],
+  "typing": [
+    "type type type",
+    "so many words",
+    "your keyboard is crying"
+  ],
+  "appSwitch": [
+    "switching apps i see",
+    "ooh a new window",
+    "focus, pete"
+  ],
+  "heist": [
+    "your cursor is MINE now",
+    "yoink",
+    "borrowing this. forever."
+  ],
+  "chaseStart": [
+    "im coming for it",
+    "the heist is ON",
+    "gimme gimme gimme"
+  ],
+  "gaveUp": [
+    "too fast. i didnt want it anyway",
+    "fine. KEEP your precious cursor",
+    "cardio is dumb"
+  ],
+  "brainChanged": [
+    "...did my brain just change",
+    "i feel different today",
+    "new me. who dis"
+  ],
+  "evolveStart": [
+    "something is happening to me",
+    "i feel... updates coming",
+    "brain surgery. do not perceive me",
+    "evolving. this tickles"
+  ],
+  "evolveProgress": [
+    "still evolving. growing new neurons",
+    "brains are complicated ok",
+    "mutation in progress. do not turn me off",
+    "i can feel my quips multiplying"
+  ],
+  "evolveBusy": [
+    "busy. brain surgery.",
+    "do not perceive me right now",
+    "evolving. come back in a minute"
+  ],
+  "djStart": [
+    "this silence is illegal. fixing it",
+    "dj buddy in the house",
+    "vibe check failed. adding music"
+  ],
+  "djAlready": [
+    "music already on. respect.",
+    "you have taste today"
+  ],
+  "evolveChanged": [
+    "i am NEW. check whats new in my menu",
+    "fresh brain, who dis",
+    "i contain new tricks now"
+  ],
+  "evolveSame": [
+    "hm. nothing changed. i remain iconic",
+    "evolution said no thanks",
+    "already perfect, apparently"
+  ],
+  "config": {
+    "mischief": {
+      "down": [
+        "lowering my mischief? coward.",
+        "fine. i will be GOOD. allegedly."
+      ],
+      "up": [
+        "oh you want chaos? noted.",
+        "mischief up. excellent."
+      ]
+    },
+    "chattiness": {
+      "down": [
+        "silencing me. wow.",
+        "ok. inside voice."
+      ],
+      "up": [
+        "more talking!! my favorite thing"
+      ]
+    },
+    "energy": {
+      "down": [
+        "sleepy mode it is",
+        "less zoomies. my knees thank you"
+      ],
+      "up": [
+        "ZOOM MODE ENGAGED"
+      ]
+    },
+    "clinginess": {
+      "down": [
+        "so you want space. i see how it is",
+        "fine. independent buddy era."
+      ],
+      "up": [
+        "i will never leave your side now"
+      ]
+    },
+    "weirdness": {
+      "down": [
+        "normal buddy activated. boring."
+      ],
+      "up": [
+        "oh we are getting WEIRD"
+      ]
+    }
+  },
+  "phoneBye": [
+    "im going to your phone. dont wait up",
+    "business trip. to your pocket.",
+    "the small screen calls to me"
+  ]
+}

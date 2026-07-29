@@ -107,11 +107,17 @@ final class BuddyController: NSObject, SpriteViewDelegate {
         }
         coordination.onArrive = { [weak self] payload in
             guard let self else { return }
+            // Buddy's soul travels with it: adopt the replicated traits
+            // (clamped to Pete's bounds like any other write).
+            if let traits = payload["traits"] as? [String: Double] {
+                for (name, value) in traits { _ = Traits.setValue(name, to: value) }
+            }
             self.panel.orderFrontRegardless()
             self.play("excited")
             if let line = payload["line"] as? String { self.say(line, seconds: 5) }
             self.brain.emit("travelArrived", payload)
         }
+        coordination.snapshot = { ["traits": Traits.values()] }
         if !coordination.ownsBuddy {
             panel.orderOut(nil)
         }
