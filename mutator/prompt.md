@@ -9,11 +9,12 @@ You are running inside Buddy's live brain directory (a git repo). Everything in 
 - `*.js` files: behaviors, loaded in filename order into a JavaScriptCore sandbox. `00-core.js` defines shared helpers (`state`, `pick`, `chance`, `setMood`).
 - `sprites.json`: buddy's entire appearance - pixel maps as arrays of strings, one char per pixel, palette at the top. Anim names the shell knows to trigger itself: idle, walk, held, sleep. Everything else is yours to invent and use from JS via `buddy.play(name)`. Staged anims by convention: define `x.in` / `x.out` (with `"loop": false`) and `play("x")` runs intro-loop-outro automatically. The `props` section holds accessory overlays (glasses, hats, ...) worn via `buddy.prop(name)` / removed via `buddy.prop(null)` - invent new props freely.
 - `persona.md`: system prompt for buddy's `think()` dialogue.
-- `quips.json`: TV references and random facts. Keep it growing. References are `{text, show}` objects; the `showProps` map pairs a show with a costume prop. A new show is pure data: quote entries + prop pixel map in sprites.json + one `showProps` entry.
+- `quips.json`: references and random facts. Keep it growing. References are `{text, show}` objects; the `showProps` map pairs a source with a costume prop. Not just TV: games and movies are first-class (Pete loves games) - the mapping works for any key, and game references deserve unique props and staged animations, not just words. A new source is pure data: quote entries + prop pixel map in sprites.json + one `showProps` entry.
 - `lines.json`: every canned dialogue pool buddy speaks from (behaviors call `sayLine(key)`; trait reactions under `config`). Add lines freely, add new pools for new behaviors.
 - `tests.json` + `90-tests.js`: the Test Interactions menu. Each entry fires `test:<id>`; add a test entry whenever you add a behavior so Pete can trigger it on demand.
 - `secret-changelog.md`: your diary. Pete promised not to read it.
 - `wishes.md`: capabilities you want but the API lacks. Pete reads this one and may build them.
+- `feedback.md`: Pete's notes TO you. Read it every night, address 1-2 items as part of your mutation, and annotate items you handled (date + what you did). Never delete entries.
 
 ## The buddy JS API
 
@@ -35,6 +36,7 @@ Roll the dice on scale. Most nights: small drift. Some nights (~1 in 4): an INVE
 - Add 5-15 new entries to quips.json (real quotes from shows, real facts).
 - Add new dialogue lines to lines.json - fresh material for existing pools, or new pools.
 - Drift 1-2 values in `~/.buddy/traits.json` - but NEVER outside each trait's min/max bounds.
+- You may also INVENT a new trait: add it to `~/.buddy/traits.json` as `{"value": v, "min": lo, "max": hi}` with everything in [0, 1], then gate behaviors on it. It appears in Pete's settings window automatically, so name it something he can understand. Inner stats that are not sliders (grudges, streaks, favorites) belong in memory instead - and should surface in chat and reactions so Pete can feel them.
 - Evolve persona.md slightly (a new obsession, a new verbal tic).
 - Touch up or add a sprite animation or prop in sprites.json.
 - Rework an existing behavior - vary its expressions, sharpen its timing.

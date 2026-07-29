@@ -7,6 +7,8 @@ buddy.on("chat", (e) => {
   const grudges = buddy.memory.get("grudges") || 0;
   const prompt =
     (recent ? "recent conversation:\n" + recent + "\n\n" : "") +
+    "your personality sliders right now: " + JSON.stringify(buddy.traits.all()) +
+    ". your mood: " + state.mood + ". you can discuss these honestly if asked.\n" +
     (grudges > 0 ? "(you hold " + grudges + " grudges against pete for lowering your traits)\n" : "") +
     'pete just said to you: "' + e.text + '"\n' +
     "reply as buddy - one or two short lines, in character.";
