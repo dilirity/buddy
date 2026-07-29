@@ -94,12 +94,15 @@ class Coordination(context: Context, private val onUi: Handler = Handler(Looper.
                     override fun onServiceResolved(r: NsdServiceInfo) {
                         peerHost = r.host?.hostAddress
                         peerPort = r.port
+                        BuddyService.peerOnline = true
                         Log.i(TAG, "peer ${r.serviceName} at $peerHost:$peerPort")
                     }
                     override fun onResolveFailed(i: NsdServiceInfo, e: Int) { Log.w(TAG, "resolve failed $e") }
                 })
             }
-            override fun onServiceLost(s: NsdServiceInfo) { if (s.serviceName != "phone") peerHost = null }
+            override fun onServiceLost(s: NsdServiceInfo) {
+                if (s.serviceName != "phone") { peerHost = null; BuddyService.peerOnline = false }
+            }
             override fun onDiscoveryStarted(t: String) {}
             override fun onDiscoveryStopped(t: String) {}
             override fun onStartDiscoveryFailed(t: String, e: Int) { Log.w(TAG, "discovery failed $e") }

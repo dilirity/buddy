@@ -28,6 +28,8 @@ final class Coordination {
     private var listener: NWListener?
     private var browser: NWBrowser?
     private var peers: [String: NWEndpoint] = [:]
+    // Main-thread mirror of peer names, for UI (menu) reads.
+    private(set) var knownPeers: [String] = []
     private var peerHosts: [String: String] = [:]
     private var connections: [NWConnection] = []
     private let stateURL: URL
@@ -90,6 +92,8 @@ final class Coordination {
             self.peers = found
             self.peerHosts = self.peerHosts.filter { found.keys.contains($0.key) }
             buddyLog("coord: peers \(Array(found.keys))")
+            let names = Array(found.keys).sorted()
+            DispatchQueue.main.async { self.knownPeers = names }
             for name in fresh { self.hello(name) }
         }
         b.start(queue: queue)

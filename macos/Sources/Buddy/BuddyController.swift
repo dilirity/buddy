@@ -1,6 +1,6 @@
 import AppKit
 
-final class BuddyController: NSObject, SpriteViewDelegate {
+final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
     let scale: CGFloat = 5
 
     private(set) var sheet: SpriteSheet = SpriteLoader.fallback()
@@ -42,6 +42,7 @@ final class BuddyController: NSObject, SpriteViewDelegate {
     private var testModeItem: NSMenuItem?
     private var testMenuItem: NSMenuItem?
     private var whatsNewItem: NSMenuItem?
+    private var devicesItem: NSMenuItem?
     private var evolveItem: NSMenuItem?
     private var evolveProcess: Process?
     private var evolveStartSignature = ""
@@ -717,6 +718,9 @@ final class BuddyController: NSObject, SpriteViewDelegate {
         let test = NSMenuItem(title: "Chaos Test Mode (1h, no limits)", action: #selector(menuToggleTestMode), keyEquivalent: "")
         testModeItem = test
         menu.addItem(test)
+        let devices = NSMenuItem(title: "Devices", action: nil, keyEquivalent: "")
+        devicesItem = devices
+        menu.addItem(devices)
         let fresh = NSMenuItem(title: "What's New ✨", action: nil, keyEquivalent: "")
         whatsNewItem = fresh
         menu.addItem(fresh)
@@ -734,7 +738,9 @@ final class BuddyController: NSObject, SpriteViewDelegate {
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit Buddy", action: #selector(menuQuit), keyEquivalent: "q"))
         for item in menu.items { item.target = self }
+        menu.delegate = self
         statusItem.menu = menu
+        rebuildDevicesMenu()
     }
 
     // The Test submenu is data: brain/tests.json defines entries, each fires a
@@ -871,6 +877,30 @@ final class BuddyController: NSObject, SpriteViewDelegate {
         guard let id = sender.representedObject as? String else { return }
         if isFrozen { unfreeze() }
         brain.emit("test:\(id)")
+    }
+
+    // Live device roster, rebuilt every time the menu opens.
+    func menuWillOpen(_ menu: NSMenu) {
+        rebuildDevicesMenu()
+    }
+
+    private func rebuildDevicesMenu() {
+        guard let item = devicesItem else { return }
+        let sub = NSMenu()
+        let here = !buddyAway
+        sub.addItem(NSMenuItem(title: "mac (this device)" + (here ? "  ● buddy is here" : ""),
+                               action: nil, keyEquivalent: ""))
+        let peers = coordination?.knownPeers ?? []
+        for p in peers {
+            let marker = !here && peers.count == 1 ? "  ● buddy is there" : ""
+            sub.addItem(NSMenuItem(title: "\(p) - online" + marker, action: nil, keyEquivalent: ""))
+        }
+        if peers.isEmpty {
+            sub.addItem(NSMenuItem(title: here ? "no other devices on the LAN"
+                                              : "buddy is away - device not on the LAN",
+                                   action: nil, keyEquivalent: ""))
+        }
+        item.submenu = sub
     }
 
     @objc private func menuTogglePanic() { togglePanic() }

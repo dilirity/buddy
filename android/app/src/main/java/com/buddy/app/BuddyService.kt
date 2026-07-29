@@ -22,6 +22,7 @@ class BuddyService : Service() {
         @Volatile var frozenState = false
         @Volatile var testModeUntil = 0L
         @Volatile var running = false
+        @Volatile var peerOnline = false
         val testMode: Boolean get() = System.currentTimeMillis() < testModeUntil
     }
 

@@ -151,13 +151,15 @@ class MainActivity : Activity() {
         talkBtn.isEnabled = here
         testsBtn.isEnabled = here
 
+        val peerLine = if (running)
+            "\ndevices: mac " + (if (BuddyService.peerOnline) "(online)" else "(not on LAN)") else ""
         status.text = when {
             !overlay -> "buddy needs the overlay permission to exist here."
             !running -> "ready. start the service and buddy can travel to this phone."
             !here -> "service running, listening on the LAN. buddy is elsewhere -\n" +
                 "it appears here when it travels over."
             else -> "buddy is HERE.\ntap: poke. drag: carry. hold still 1.2s: send home."
-        }
+        } + peerLine
     }
 
     private lateinit var settingsSection: LinearLayout
