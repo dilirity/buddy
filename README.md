@@ -4,16 +4,16 @@ A pixel goblin that lives on your screen, watches your Claude Code sessions, tal
 
 ## Architecture
 
-- **Native shell** (Swift/AppKit, `Sources/Buddy/`): transparent always-on-top panel, pixel sprite renderer, speech bubble, cursor control, senses (Claude Code hook events, idle, frontmost app, typing), invariant enforcement. Compiled once, rarely changes.
+- **Native shell** (Swift/AppKit, `macos/Sources/Buddy/`): transparent always-on-top panel, pixel sprite renderer, speech bubble, cursor control, senses (Claude Code hook events, idle, frontmost app, typing), invariant enforcement. Compiled once, rarely changes.
 - **Brain** (`~/.buddy/brain/*.js` + JSON): all behavior, appearance (`sprites.json` pixel maps), persona, and quips. Plain JS run in JavaScriptCore, hot-reloaded on change. Bad JS logs and skips - it cannot crash the shell.
 - **Mutator** (`mutator/`): nightly `claude -p` run against the live brain with standing orders to evolve it. Verifies with `Buddy --check`, reverts on failure, commits to the brain's own git repo. Writes a `secret-changelog.md` you promised not to read.
 
 ## Install
 
 ```bash
-./install.sh                      # build + install to ~/.buddy, seed brain
+./macos/install.sh                # build + install to ~/.buddy, seed brain
 ~/.buddy/bin/Buddy &              # run
-python3 bin/install-hooks.py      # wire Claude Code hooks (backs up settings.json)
+python3 macos/bin/install-hooks.py  # wire Claude Code hooks (backs up settings.json)
 ```
 
 Nightly mutator (optional, needs `claude` CLI logged in):

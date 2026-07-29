@@ -16,7 +16,7 @@ chmod +x "$HOME/.buddy/bin/buddy-hook"
 
 # Seed the live brain without overwriting an evolved one.
 mkdir -p "$HOME/.buddy/brain"
-for f in brain/*; do
+for f in ../brain/*; do
   base="$(basename "$f")"
   if [ ! -e "$HOME/.buddy/brain/$base" ]; then
     cp "$f" "$HOME/.buddy/brain/$base"
@@ -26,7 +26,7 @@ done
 
 # Mutator lives at a stable path so both launchd and the Evolve Now menu find it.
 mkdir -p "$HOME/.buddy/mutator"
-cp mutator/run.sh mutator/prompt.md "$HOME/.buddy/mutator/"
+cp ../mutator/run.sh ../mutator/prompt.md "$HOME/.buddy/mutator/"
 chmod +x "$HOME/.buddy/mutator/run.sh"
 
 # Brain gets its own git history so the mutator can commit (and revert) itself.
