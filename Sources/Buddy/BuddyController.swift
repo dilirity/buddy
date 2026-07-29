@@ -95,6 +95,9 @@ final class BuddyController: NSObject, SpriteViewDelegate {
         commonTimer(3600, repeats: true) { [weak self] _ in
             self?.checkEvolutionStaleness()
         }
+        commonTimer(10, repeats: true) { [weak self] _ in
+            self?.pollPhoneInbox()
+        }
 
         // Watchdog: transient anims (excited, scheming, ...) must not stick.
         // Behaviors are supposed to return to idle themselves; when their timer
@@ -414,9 +417,73 @@ final class BuddyController: NSObject, SpriteViewDelegate {
         }
     }
 
-    // MARK: - Phone (ntfy push)
+    // MARK: - Phone (ntfy push + inbox chat)
 
     private var lastPhonePush = Date.distantPast
+    private var lastPhoneReply = Date.distantPast
+    private var phoneInboxSince = Int(Date().timeIntervalSince1970)
+    private var phonePolling = false
+
+    private func phoneConfig() -> [String: Any]? {
+        guard let data = try? Data(contentsOf: BuddyPaths.home.appendingPathComponent("phone.json")) else { return nil }
+        return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+    }
+
+    // Replies to Pete's phone messages: he initiated, so no disruption budget
+    // and no 10-minute narrative gap - just a modest anti-runaway limit.
+    func phoneReply(_ text: String) -> Bool {
+        guard Date().timeIntervalSince(lastPhoneReply) > 15 else { return false }
+        guard let topic = phoneConfig()?["topic"] as? String, !topic.isEmpty else { return false }
+        lastPhoneReply = Date()
+        DispatchQueue.global(qos: .utility).async {
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: "/usr/bin/curl")
+            p.arguments = ["-s", "-m", "10", "-H", "Title: buddy", "-d", text,
+                           "https://ntfy.sh/\(topic)"]
+            p.standardOutput = Pipe()
+            p.standardError = Pipe()
+            try? p.run()
+            p.waitUntilExit()
+        }
+        return true
+    }
+
+    // Poll the inbox topic for messages Pete sends from the ntfy app.
+    func pollPhoneInbox() {
+        guard !phonePolling, let inbox = phoneConfig()?["inbox"] as? String, !inbox.isEmpty else { return }
+        phonePolling = true
+        let since = phoneInboxSince
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            defer { DispatchQueue.main.async { self?.phonePolling = false } }
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: "/usr/bin/curl")
+            p.arguments = ["-s", "-m", "15", "https://ntfy.sh/\(inbox)/json?poll=1&since=\(since)"]
+            let out = Pipe()
+            p.standardOutput = out
+            p.standardError = Pipe()
+            do { try p.run() } catch { return }
+            let data = out.fileHandleForReading.readDataToEndOfFile()
+            p.waitUntilExit()
+            guard let text = String(data: data, encoding: .utf8) else { return }
+            var newest = since
+            var messages: [String] = []
+            for line in text.split(separator: "\n") {
+                guard let d = line.data(using: .utf8),
+                      let json = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any],
+                      json["event"] as? String == "message",
+                      let msg = json["message"] as? String else { continue }
+                if let t = (json["time"] as? NSNumber)?.intValue { newest = max(newest, t + 1) }
+                messages.append(msg)
+            }
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.phoneInboxSince = max(self.phoneInboxSince, newest)
+                for msg in messages {
+                    self.brain.emit("phoneChat", ["text": msg])
+                }
+            }
+        }
+    }
 
     // Send a push to Pete's phone via ntfy. Hard-limited: shares the
     // disruption budget AND a native 10-minute minimum gap - a buzzing phone

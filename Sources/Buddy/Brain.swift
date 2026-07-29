@@ -181,6 +181,13 @@ final class Brain {
         }
         set("phone", phoneJS)
 
+        // Reply to a message Pete sent from his phone - lightly rate-limited,
+        // for use ONLY in response to phoneChat events.
+        let phoneReplyJS: @convention(block) (String) -> Bool = { [weak self] text in
+            self?.controller?.phoneReply(text) ?? false
+        }
+        set("phoneReply", phoneReplyJS)
+
         // buddy.music - narrow whitelisted verbs, Spotify or Apple Music.
         let musicObj = JSValue(newObjectIn: context)!
         let musicPlay: @convention(block) (JSValue) -> Bool = { [weak self] playlist in

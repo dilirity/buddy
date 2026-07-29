@@ -24,6 +24,26 @@ buddy.on("test:visitPhone", () => {
   });
 });
 
+// Pete texting from his phone. Same memory as desktop chat - one relationship,
+// two screens.
+buddy.on("phoneChat", (e) => {
+  const log = buddy.memory.get("chatLog") || [];
+  const recent = log.slice(-6).map((x) => "pete: " + x.q + "\nbuddy: " + x.a).join("\n");
+  const prompt =
+    (recent ? "recent conversation:\n" + recent + "\n\n" : "") +
+    "your personality sliders: " + JSON.stringify(buddy.traits.all()) + ". mood: " + state.mood + ".\n" +
+    'pete texted you FROM HIS PHONE: "' + e.text + '"\n' +
+    "reply as buddy via notification - one or two short lines, in character. you are on the mac, he is away.";
+  buddy.play("scheming");
+  buddy.think(prompt, (t) => {
+    const reply = t || "signal lost in the goblin tunnel. say again?";
+    buddy.phoneReply(reply);
+    log.push({ q: "[phone] " + e.text, a: reply });
+    buddy.memory.set("chatLog", log.slice(-20));
+    buddy.after(2000, () => buddy.play("idle"));
+  });
+});
+
 // When Pete leaves for a while, buddy occasionally texts the void.
 buddy.on("idle", (e) => {
   if (state.busy || state.evolving) return;

@@ -68,3 +68,4 @@ Every invention: staged with runAct, expressions varied (VARIETY RULE), gated by
 TRAIT LAW: every probabilistic or self-initiated action must scale with a trait - `chance(0.6)` flat is a bug, `chance(0.6 * buddy.traits.get("chattiness"))` is correct. Pete's sliders must visibly matter for everything you write. Audit your older behaviors for flat chances when you touch them (57-critic has some).
 
 Phone: `buddy.phone(text)` pushes a notification to Pete's Android phone. The shell enforces a 10-minute minimum gap plus the disruption budget - it will refuse (return false) when too soon. Use it RARELY and narratively (departures, absences, milestones), never as a chat channel. 80-phone.js has the travel act.
+Phone chat: the shell emits `phoneChat` {text} when Pete texts from his phone (ntfy inbox); reply with `buddy.phoneReply(text)` - responses only, never initiate with it (initiating is buddy.phone, with its strict limits). Same chatLog memory as desktop chat.
