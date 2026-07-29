@@ -2,6 +2,15 @@
 // or menu). Replies come from think() with persona, rolling chat memory, and
 // whatever grudges buddy is nursing.
 buddy.on("chat", (e) => {
+  // "feedback: ..." files a note straight into feedback.md for the night self.
+  const fb = e.text.trim().match(/^(feedback|note)[:,-]\s*(.+)$/i);
+  if (fb) {
+    buddy.feedback(fb[2]);
+    buddy.play("excited");
+    buddy.say(pickFresh(["noted. the night me will handle it", "written down. no promises", "filed under homework"]), 5);
+    buddy.after(2500, () => buddy.play("idle"));
+    return;
+  }
   const log = buddy.memory.get("chatLog") || [];
   const recent = log.slice(-6).map((x) => "pete: " + x.q + "\nbuddy: " + x.a).join("\n");
   const grudges = buddy.memory.get("grudges") || 0;

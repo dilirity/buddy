@@ -144,6 +144,23 @@ final class Brain {
         }
         set("isMoving", isMoving)
 
+        // Append-only access to feedback.md - lets Pete file notes through chat.
+        // Deliberately not a general file-write.
+        let feedbackJS: @convention(block) (String) -> Void = { text in
+            let df = DateFormatter()
+            df.dateFormat = "yyyy-MM-dd"
+            let line = "- \(df.string(from: Date())): \(text) (via chat)\n"
+            let url = BuddyPaths.brain.appendingPathComponent("feedback.md")
+            if let h = FileHandle(forWritingAtPath: url.path) {
+                h.seekToEndOfFile()
+                if let d = line.data(using: .utf8) { h.write(d) }
+                try? h.close()
+            } else {
+                try? line.data(using: .utf8)?.write(to: url)
+            }
+        }
+        set("feedback", feedbackJS)
+
         // buddy.music - narrow whitelisted verbs, Spotify or Apple Music.
         let musicObj = JSValue(newObjectIn: context)!
         let musicPlay: @convention(block) (JSValue) -> Bool = { [weak self] playlist in
