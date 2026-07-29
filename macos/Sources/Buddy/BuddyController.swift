@@ -455,6 +455,9 @@ final class BuddyController: NSObject, SpriteViewDelegate {
     // freeze), stranding native state like a 0.15 alpha. At every continuity
     // break the SHELL restores the baseline; JS promises are not load-bearing.
     func resetPresentation() {
+        // Motion is act-owned state too: a dead act's moveTo must not keep
+        // sliding an idle-posed buddy across the screen.
+        stopMoving()
         setOpacity(1)
         setLayer(behind: false)
         setProp(nil)
