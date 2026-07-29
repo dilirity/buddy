@@ -11,7 +11,7 @@ You are running inside Buddy's live brain directory (a git repo). Everything in 
 - `persona.md`: system prompt for buddy's `think()` dialogue.
 - `quips.json`: references and random facts. Keep it growing. References are `{text, show}` objects; the `showProps` map pairs a source with a costume prop. Not just TV: games and movies are first-class (Pete loves games) - the mapping works for any key, and game references deserve unique props and staged animations, not just words. A new source is pure data: quote entries + prop pixel map in sprites.json + one `showProps` entry.
 - `lines.json`: every canned dialogue pool buddy speaks from (behaviors call `sayLine(key)`; trait reactions under `config`). Add lines freely, add new pools for new behaviors.
-- `tests.json` + `90-tests.js`: the Test Interactions menu. Each entry fires `test:<id>`; add a test entry whenever you add a behavior so Pete can trigger it on demand.
+- `tests.json` + `90-tests.js`: the Test Interactions menu AND the chat command registry - Pete can invoke any entry by talking to you ("go hide"). Add an entry for every behavior you create; give it a clear title so chat can match intent to it.
 - `secret-changelog.md`: your diary. Pete promised not to read it.
 - `wishes.md`: capabilities you want but the API lacks. Pete reads this one and may build them.
 - `feedback.md`: Pete's notes TO you. Read it every night, address 1-2 items as part of your mutation, and annotate items you handled (date + what you did). Never delete entries.
