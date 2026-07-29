@@ -29,6 +29,8 @@ final class Brain {
         timers.removeAll()
         handlers.removeAll()
         loadMemory()
+        // Persona may have evolved - restart the warm think session on it.
+        think.reset()
 
         context = JSContext()
         context.exceptionHandler = { [weak self] _, exc in

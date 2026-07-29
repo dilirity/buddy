@@ -142,8 +142,9 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         commonTimer(3600, repeats: true) { [weak self] _ in
             self?.checkEvolutionStaleness()
         }
-        commonTimer(10, repeats: true) { [weak self] _ in
-            self?.pollPhoneInbox()
+        ensurePhoneStream()
+        commonTimer(30, repeats: true) { [weak self] _ in
+            self?.ensurePhoneStream()
         }
 
         // Watchdog: transient anims (excited, scheming, ...) must not stick.
@@ -482,7 +483,8 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
     private var lastPhonePush = Date.distantPast
     private var lastPhoneReply = Date.distantPast
     private var phoneInboxSince = Int(Date().timeIntervalSince1970)
-    private var phonePolling = false
+    private var phoneStream: Process?
+    private var phoneStreamBuffer = Data()
 
     private func phoneConfig() -> [String: Any]? {
         guard let data = try? Data(contentsOf: BuddyPaths.home.appendingPathComponent("phone.json")) else { return nil }
@@ -540,45 +542,55 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         return true
     }
 
-    // Poll the topic for messages Pete sends from the ntfy app. Single topic
-    // for both directions: buddy's own messages carry the "buddy" title and
-    // are filtered out, so the ntfy thread reads as one chat.
-    func pollPhoneInbox() {
+    // Streaming inbox: one held-open connection to ntfy - Pete's texts arrive
+    // the instant he sends them, no polling lag. curl recycles hourly or on
+    // any disconnect; the 30s keeper timer restarts it.
+    func ensurePhoneStream() {
+        guard phoneStream == nil else { return }
         let cfg = phoneConfig()
         let inbox = (cfg?["inbox"] as? String) ?? (cfg?["topic"] as? String) ?? ""
-        guard !phonePolling, !inbox.isEmpty else { return }
-        phonePolling = true
-        let since = phoneInboxSince
-        DispatchQueue.global(qos: .utility).async { [weak self] in
-            defer { DispatchQueue.main.async { self?.phonePolling = false } }
-            let p = Process()
-            p.executableURL = URL(fileURLWithPath: "/usr/bin/curl")
-            p.arguments = ["-s", "-m", "15", "https://ntfy.sh/\(inbox)/json?poll=1&since=\(since)"]
-            let out = Pipe()
-            p.standardOutput = out
-            p.standardError = Pipe()
-            do { try p.run() } catch { return }
-            let data = out.fileHandleForReading.readDataToEndOfFile()
-            p.waitUntilExit()
-            guard let text = String(data: data, encoding: .utf8) else { return }
-            var newest = since
-            var messages: [String] = []
-            for line in text.split(separator: "\n") {
-                guard let d = line.data(using: .utf8),
-                      let json = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any],
-                      json["event"] as? String == "message",
-                      json["title"] as? String != "buddy",
-                      let msg = json["message"] as? String else { continue }
-                if let t = (json["time"] as? NSNumber)?.intValue { newest = max(newest, t + 1) }
-                messages.append(msg)
-            }
+        guard !inbox.isEmpty else { return }
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/curl")
+        p.arguments = ["-sN", "--max-time", "3600",
+                       "https://ntfy.sh/\(inbox)/json?since=\(phoneInboxSince)"]
+        let out = Pipe()
+        p.standardOutput = out
+        p.standardError = Pipe()
+        out.fileHandleForReading.readabilityHandler = { [weak self] h in
+            let d = h.availableData
+            guard !d.isEmpty else { return }
+            DispatchQueue.main.async { self?.phoneStreamData(d) }
+        }
+        p.terminationHandler = { [weak self] _ in
             DispatchQueue.main.async {
-                guard let self else { return }
-                self.phoneInboxSince = max(self.phoneInboxSince, newest)
-                for msg in messages {
-                    self.brain.emit("phoneChat", ["text": msg])
-                }
+                out.fileHandleForReading.readabilityHandler = nil
+                self?.phoneStream = nil
             }
+        }
+        do {
+            try p.run()
+            phoneStream = p
+            buddyLog("phone stream connected")
+        } catch {
+            buddyLog("phone stream: \(error)")
+        }
+    }
+
+    private func phoneStreamData(_ d: Data) {
+        phoneStreamBuffer.append(d)
+        while let nl = phoneStreamBuffer.firstIndex(of: 0x0a) {
+            let line = phoneStreamBuffer.subdata(in: phoneStreamBuffer.startIndex..<nl)
+            phoneStreamBuffer.removeSubrange(phoneStreamBuffer.startIndex...nl)
+            guard !line.isEmpty,
+                  let json = (try? JSONSerialization.jsonObject(with: line)) as? [String: Any],
+                  json["event"] as? String == "message",
+                  json["title"] as? String != "buddy",
+                  let msg = json["message"] as? String else { continue }
+            if let t = (json["time"] as? NSNumber)?.intValue {
+                phoneInboxSince = max(phoneInboxSince, t + 1)
+            }
+            brain.emit("phoneChat", ["text": msg])
         }
     }
 
