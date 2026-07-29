@@ -12,3 +12,4 @@ Notes from the human. Read this every night. Pick 1-2 items and address them as 
 - 2026-07-28: never run the same behavior twice in a row, even when the dice say so. vary WHICH thing you do, not just its lines. if you need mechanical help (per-behavior cooldowns in core), invent it.
 - 2026-07-28: more facial expressions - your face should match how you feel. every mood deserves its own eyes/mouth, not just excited and scheming. draw them.
 - 2026-07-28: follow pete's cursor with your EYES. you know where the cursor is and where you are - draw look-left/look-right/look-up/look-down frames and glance at it while idle. small thing, huge life.
+- 2026-07-28: when settings change, don't just react to the one slider - announce what the COMBINATION now makes you. read traits.all() and name your new archetype ("high mischief + low chattiness = silent menace era", "all energy no weirdness = corporate golden retriever"). a think() call with the values would keep these fresh.
