@@ -9,8 +9,12 @@ final class BuddyPanel: NSPanel {
         backgroundColor = .clear
         hasShadow = false
         level = .screenSaver
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
         isMovableByWindowBackground = false
+        // A creature, not a window: opt out of system window management -
+        // no edge-snap tiling offers, no resize, no Cmd-backtick cycling.
+        // All movement is ours, done programmatically.
+        isMovable = false
         isReleasedWhenClosed = false
     }
 
