@@ -12,7 +12,11 @@ final class Think {
     private var waiting: [(String?) -> Void] = []
     private var turns = 0
     private var timeout: DispatchSourceTimer?
-    private let maxTurns = 40
+    private let maxTurns: Int
+
+    init(maxTurns: Int = 40) {
+        self.maxTurns = maxTurns
+    }
 
     func ask(_ prompt: String, completion: @escaping (String?) -> Void) {
         queue.async {

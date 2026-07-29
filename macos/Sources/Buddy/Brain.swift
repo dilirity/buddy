@@ -22,6 +22,9 @@ final class Brain {
     private var loading = false
     private var memory: [String: Any] = [:]
     private let think = Think()
+    // Interactive lane: Pete's chats get their own warm session so they never
+    // queue behind ambient musings; recycled fast to keep context lean.
+    private let thinkFast = Think(maxTurns: 12)
 
     func reload() {
         generation += 1
@@ -29,8 +32,9 @@ final class Brain {
         timers.removeAll()
         handlers.removeAll()
         loadMemory()
-        // Persona may have evolved - restart the warm think session on it.
+        // Persona may have evolved - restart the warm think sessions on it.
         think.reset()
+        thinkFast.reset()
 
         context = JSContext()
         context.exceptionHandler = { [weak self] _, exc in
@@ -366,6 +370,17 @@ final class Brain {
             }
         }
         set("think", thinkJS)
+
+        // Interactive lane - for replying to Pete, never blocked by ambient.
+        let thinkNowJS: @convention(block) (String, JSValue) -> Void = { [weak self] prompt, cb in
+            guard let self else { return }
+            let gen = self.generation
+            self.thinkFast.ask(prompt) { [weak self] reply in
+                guard let self, self.generation == gen else { return }
+                cb.call(withArguments: [reply ?? NSNull()])
+            }
+        }
+        set("thinkNow", thinkNowJS)
 
         let after: @convention(block) (Double, JSValue) -> Int = { [weak self] ms, fn in
             self?.addTimer(ms: ms, repeats: false, fn: fn) ?? 0

@@ -43,7 +43,7 @@ globalThis.handleChatMessage = function (text, source) {
   }
 
   const log = buddy.memory.get("chatLog") || [];
-  const recent = log.slice(-6).map((x) => "pete: " + x.q + "\nbuddy: " + x.a).join("\n");
+  const recent = log.slice(-4).map((x) => "pete: " + x.q + "\nbuddy: " + x.a).join("\n");
   const grudges = buddy.memory.get("grudges") || 0;
   const traits = buddy.traits.all();
   const tests = buddy.data("tests.json") || [];
@@ -73,7 +73,7 @@ globalThis.handleChatMessage = function (text, source) {
   } else {
     buddy.say(pickFresh(["hmm...", "thinking...", "processing. rudely.", "one sec. consulting my neurons"]), 20);
   }
-  buddy.think(prompt, (t) => {
+  (buddy.thinkNow || buddy.think)(prompt, (t) => {
     let obj = null;
     if (t) {
       try {
