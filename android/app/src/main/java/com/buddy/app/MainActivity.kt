@@ -4,13 +4,17 @@ import android.app.Activity
 import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
+import android.graphics.Typeface
 import android.net.Uri
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
 import android.widget.Button
 import android.widget.LinearLayout
+import android.widget.SeekBar
 import android.widget.TextView
+import org.json.JSONObject
+import java.io.File
 
 // Setup screen. The real UI is the overlay buddy; this exists to grant the
 // permissions Android demands and to show honest status.
@@ -55,7 +59,10 @@ class MainActivity : Activity() {
         root.addView(overlayBtn)
         root.addView(batteryBtn)
         root.addView(serviceBtn)
-        setContentView(root)
+        settingsSection = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        root.addView(settingsSection)
+        buildSettings()
+        setContentView(android.widget.ScrollView(this).apply { addView(root) })
 
         // Arrived via the ntfy wake poke (buddy:// link): revive the service.
         if (intent?.data?.scheme == "buddy" && Settings.canDrawOverlays(this)) {
@@ -66,6 +73,7 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         refresh()
+        buildSettings() // traits may have just arrived with buddy
     }
 
     private fun postDelayed() {
@@ -91,6 +99,93 @@ class MainActivity : Activity() {
             else -> "buddy service is running. buddy appears when it travels here.\n" +
                 "tap buddy: poke. drag: carry. hold 1.5s: send home."
         }
+    }
+
+    private lateinit var settingsSection: LinearLayout
+
+    // Settings parity with the mac's Buddy Settings window: personality
+    // sliders inside each trait's drift bounds, plus the disruption leash.
+    // Bounds arrive with buddy via replication; no traits yet = nothing to show.
+    private fun buildSettings() {
+        settingsSection.removeAllViews()
+        val names = Traits.names(this)
+
+        settingsSection.addView(header("Personality"))
+        if (names.isEmpty()) {
+            settingsSection.addView(note("no traits yet - they arrive with buddy's first visit."))
+        }
+        for (name in names) {
+            val (lo, hi) = Traits.bounds(this, name)
+            settingsSection.addView(sliderRow(name, lo, hi, Traits.get(this, name), "%.2f") { v ->
+                val from = Traits.get(this, name)
+                Traits.set(this, name, v)
+                emitToService("configChanged", JSONObject()
+                    .put("trait", name).put("from", from).put("to", v))
+            })
+        }
+        settingsSection.addView(note("sliders move within each trait's min/max drift bounds (from the mac)."))
+
+        settingsSection.addView(header("Limits"))
+        val inv = File(filesDir, "invariants.json")
+        val current = try { JSONObject(inv.readText()).optInt("maxDisruptivePerHour", 3) }
+            catch (e: Exception) { 3 }
+        settingsSection.addView(sliderRow("disruptive / hour", 0.0, 30.0, current.toDouble(), "%.0f") { v ->
+            inv.writeText(JSONObject().put("maxDisruptivePerHour", v.toInt()).toString(2))
+        })
+        settingsSection.addView(note("the leash. tighter here than the mac - it buzzes in your pocket."))
+    }
+
+    private fun emitToService(event: String, payload: JSONObject) {
+        if (!serviceRunning()) return
+        startService(Intent(this, BuddyService::class.java)
+            .putExtra("emit", event).putExtra("payload", payload.toString()))
+    }
+
+    private fun header(text: String) = TextView(this).apply {
+        this.text = text
+        textSize = 16f
+        setTypeface(null, Typeface.BOLD)
+        setPadding(0, 50, 0, 10)
+    }
+
+    private fun note(text: String) = TextView(this).apply {
+        this.text = text
+        textSize = 11f
+        alpha = 0.6f
+        setPadding(0, 6, 0, 6)
+    }
+
+    private fun sliderRow(label: String, min: Double, max: Double, value: Double,
+                          format: String, onChange: (Double) -> Unit): LinearLayout {
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val name = TextView(this).apply {
+            text = label
+            typeface = Typeface.MONOSPACE
+            width = 340
+        }
+        val valueLabel = TextView(this).apply {
+            text = String.format(format, value)
+            typeface = Typeface.MONOSPACE
+            width = 130
+        }
+        val seek = SeekBar(this).apply {
+            this.max = 100
+            progress = if (max > min) (((value - min) / (max - min)) * 100).toInt() else 0
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(sb: SeekBar, p: Int, fromUser: Boolean) {
+                    valueLabel.text = String.format(format, min + (max - min) * p / 100.0)
+                }
+                override fun onStartTrackingTouch(sb: SeekBar) {}
+                override fun onStopTrackingTouch(sb: SeekBar) {
+                    onChange(min + (max - min) * sb.progress / 100.0)
+                }
+            })
+        }
+        row.addView(name)
+        row.addView(seek)
+        row.addView(valueLabel)
+        return row
     }
 
     private fun serviceRunning(): Boolean {

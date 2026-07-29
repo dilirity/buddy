@@ -47,7 +47,8 @@ class BuddyService : Service() {
 
         coordination = Coordination(this)
         coordination.onArrive = { payload ->
-            payload.optJSONObject("traits")?.let { Traits.replaceAll(this, it) }
+            payload.optJSONObject("traitSpecs")?.let { Traits.replaceSpecs(this, it) }
+                ?: payload.optJSONObject("traits")?.let { Traits.replaceAll(this, it) }
             overlay?.show(payload.optString("line").takeIf { it.isNotEmpty() }) {
                 brain.emit("travelArrived", payload)
             }
@@ -59,7 +60,8 @@ class BuddyService : Service() {
         // Mac crashed while owning buddy: resume from the last replicated
         // snapshot with emergency-arrival fiction.
         coordination.onEmergencyClaim = { snapshot ->
-            snapshot.optJSONObject("traits")?.let { Traits.replaceAll(this, it) }
+            snapshot.optJSONObject("traitSpecs")?.let { Traits.replaceSpecs(this, it) }
+                ?: snapshot.optJSONObject("traits")?.let { Traits.replaceAll(this, it) }
             overlay?.show("uh. the mac just died?? im living here now") {
                 brain.emit("travelArrived", snapshot)
             }
@@ -106,6 +108,13 @@ class BuddyService : Service() {
         val payload = JSONObject()
             .put("line", "im BACK. phones are small")
             .put("traits", Traits.all(this))
+            .put("traitSpecs", JSONObject().also { specs ->
+                for (name in Traits.names(this)) {
+                    val (lo, hi) = Traits.bounds(this, name)
+                    specs.put(name, JSONObject()
+                        .put("value", Traits.get(this, name)).put("min", lo).put("max", hi))
+                }
+            })
         coordination.travel(payload) { ok ->
             if (!ok) overlay?.say("hm. cant find the mac. staying here i guess", 5.0, null)
         }
@@ -124,6 +133,7 @@ class BuddyService : Service() {
     }
 
     private fun pushNotification(text: String, hard: Boolean): Boolean {
+        loadInvariants() // Pete may have moved the leash in settings
         val now = System.currentTimeMillis()
         if (hard) {
             if (now - lastPhonePush < 600_000) return false
@@ -163,7 +173,17 @@ class BuddyService : Service() {
             .build()
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Settings screen pipes config edits in as events, so buddy notices
+        // being tweaked here exactly like it notices traits.json edits.
+        intent?.getStringExtra("emit")?.let { name ->
+            val payload = intent.getStringExtra("payload")?.let {
+                try { JSONObject(it) } catch (e: Exception) { null }
+            }
+            brain.emit(name, payload)
+        }
+        return START_STICKY
+    }
 
     override fun onDestroy() {
         try { unregisterReceiver(senses) } catch (e: Exception) { Log.w("BuddyService", "$e") }

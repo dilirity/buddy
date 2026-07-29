@@ -28,6 +28,12 @@ enum Traits {
         load().mapValues { $0.clamped }
     }
 
+    // Full spec (value + drift bounds) for replication: follower devices
+    // need the bounds so their settings UIs clamp exactly like this one.
+    static func specs() -> [String: [String: Double]] {
+        load().mapValues { ["value": $0.clamped, "min": $0.min, "max": $0.max] }
+    }
+
     // Write one trait's value, clamped to its bounds. The bounds themselves
     // are only ever edited by Pete.
     static func setValue(_ name: String, to value: Double) -> Bool {

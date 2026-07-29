@@ -117,7 +117,7 @@ final class BuddyController: NSObject, SpriteViewDelegate {
             if let line = payload["line"] as? String { self.say(line, seconds: 5) }
             self.brain.emit("travelArrived", payload)
         }
-        coordination.snapshot = { ["traits": Traits.values()] }
+        coordination.snapshot = { ["traits": Traits.values(), "traitSpecs": Traits.specs()] }
         if !coordination.ownsBuddy {
             panel.orderOut(nil)
         }
@@ -470,7 +470,8 @@ final class BuddyController: NSObject, SpriteViewDelegate {
             completion(false)
             return
         }
-        coordination.travel(payload: ["line": line, "traits": Traits.values()]) { [weak self] ok in
+        coordination.travel(payload: ["line": line, "traits": Traits.values(),
+                                      "traitSpecs": Traits.specs()]) { [weak self] ok in
             if !ok { self?.ntfyPoke() }
             completion(ok)
         }
