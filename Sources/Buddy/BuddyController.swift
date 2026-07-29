@@ -448,9 +448,13 @@ final class BuddyController: NSObject, SpriteViewDelegate {
         return true
     }
 
-    // Poll the inbox topic for messages Pete sends from the ntfy app.
+    // Poll the topic for messages Pete sends from the ntfy app. Single topic
+    // for both directions: buddy's own messages carry the "buddy" title and
+    // are filtered out, so the ntfy thread reads as one chat.
     func pollPhoneInbox() {
-        guard !phonePolling, let inbox = phoneConfig()?["inbox"] as? String, !inbox.isEmpty else { return }
+        let cfg = phoneConfig()
+        let inbox = (cfg?["inbox"] as? String) ?? (cfg?["topic"] as? String) ?? ""
+        guard !phonePolling, !inbox.isEmpty else { return }
         phonePolling = true
         let since = phoneInboxSince
         DispatchQueue.global(qos: .utility).async { [weak self] in
@@ -471,6 +475,7 @@ final class BuddyController: NSObject, SpriteViewDelegate {
                 guard let d = line.data(using: .utf8),
                       let json = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any],
                       json["event"] as? String == "message",
+                      json["title"] as? String != "buddy",
                       let msg = json["message"] as? String else { continue }
                 if let t = (json["time"] as? NSNumber)?.intValue { newest = max(newest, t + 1) }
                 messages.append(msg)

@@ -35,12 +35,15 @@ buddy.on("phoneChat", (e) => {
     'pete texted you FROM HIS PHONE: "' + e.text + '"\n' +
     "reply as buddy via notification - one or two short lines, in character. you are on the mac, he is away.";
   buddy.play("scheming");
+  buddy.say(pickFresh(["texting back...", "replying. one thumb.", "hold on. composing."]), 8, "phone");
   buddy.think(prompt, (t) => {
     const reply = t || "signal lost in the goblin tunnel. say again?";
     buddy.phoneReply(reply);
+    buddy.play("excited");
+    buddy.say("sent!", 3, "phone");
     log.push({ q: "[phone] " + e.text, a: reply });
     buddy.memory.set("chatLog", log.slice(-20));
-    buddy.after(2000, () => buddy.play("idle"));
+    buddy.after(2500, () => buddy.play("idle"));
   });
 });
 
