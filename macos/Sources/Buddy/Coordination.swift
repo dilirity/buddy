@@ -19,6 +19,8 @@ final class Coordination {
     // departed: our travel was acked, buddy left.
     var onArrive: (([String: Any]) -> Void)?
     var onDepart: (() -> Void)?
+    // Every replicated state snapshot from the current owner (traits sync).
+    var onSnapshot: (([String: Any]) -> Void)?
 
     private let queue = DispatchQueue(label: "buddy.coord")
     private var listener: NWListener?
@@ -145,8 +147,10 @@ final class Coordination {
     }
 
     // Full-snapshot state event to every peer (v1 replication: latest wins).
+    // Owner-only: a follower pushing state would fight the owner's copy.
     func broadcastState() {
         DispatchQueue.main.async {
+            guard self.ownsBuddy else { return }
             let payload = self.snapshot?() ?? [:]
             self.queue.async {
                 for (_, endpoint) in self.peers {
@@ -247,6 +251,10 @@ final class Coordination {
             DispatchQueue.main.async { self.onArrive?(payload) }
 
         case "claim", "state":
+            if type == "state", let payload = frame["payload"] as? [String: Any],
+               frame["owner"] as? Bool == true, !ownsBuddy {
+                DispatchQueue.main.async { self.onSnapshot?(payload) }
+            }
             // Someone else claims/reports ownership. Higher epoch wins;
             // equal epoch resolves by rank (lower rank wins) - the split-brain
             // tiebreak from coordination.md.

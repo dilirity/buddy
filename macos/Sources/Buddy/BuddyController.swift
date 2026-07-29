@@ -118,6 +118,13 @@ final class BuddyController: NSObject, SpriteViewDelegate {
             self.brain.emit("travelArrived", payload)
         }
         coordination.snapshot = { ["traits": Traits.values(), "traitSpecs": Traits.specs()] }
+        coordination.onSnapshot = { payload in
+            // Trait edits made wherever buddy lives apply here too (clamped
+            // to Pete's bounds as always; bounds themselves never replicate in).
+            if let traits = payload["traits"] as? [String: Double] {
+                for (name, value) in traits { _ = Traits.setValue(name, to: value) }
+            }
+        }
         if !coordination.ownsBuddy {
             panel.orderOut(nil)
         }

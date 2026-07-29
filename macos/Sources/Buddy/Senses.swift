@@ -108,12 +108,17 @@ final class Senses {
     private func pollTraits() {
         guard controller?.evolving != true else { return }
         let now = Traits.values()
+        var changed = false
         for (name, value) in now {
             if let old = traitsSnapshot[name], abs(old - value) > 0.001 {
                 controller?.brain.emit("configChanged", ["trait": name, "from": old, "to": value])
+                changed = true
             }
         }
         traitsSnapshot = now
+        // Spec: replication on every state change, not on a timer - any trait
+        // edit (settings window, chat, hand-edited json) broadcasts right away.
+        if changed { controller?.coordination?.broadcastState() }
     }
 
     private func pollBrain() {

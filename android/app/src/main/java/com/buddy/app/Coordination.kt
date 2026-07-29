@@ -243,6 +243,26 @@ class Coordination(context: Context, private val onUi: Handler = Handler(Looper.
         sock.getOutputStream().flush()
     }
 
+    // Full-snapshot state event to the peer (spec: replication on every state
+    // change). Owner-only, same rule as the mac side.
+    fun broadcastState(payload: JSONObject) {
+        val host = peerHost ?: return
+        val port = peerPort
+        if (!ownsBuddy) return
+        Thread {
+            try {
+                val sock = Socket()
+                sock.connect(InetSocketAddress(host, port), 5000)
+                send(sock, JSONObject().put("type", "state").put("epoch", epoch)
+                    .put("seq", 0).put("op", "snapshot").put("owner", true)
+                    .put("payload", payload))
+                sock.close()
+            } catch (e: Exception) {
+                Log.w(TAG, "state broadcast: $e")
+            }
+        }.start()
+    }
+
     // Travel buddy back to the discovered peer. completion on main thread.
     fun travel(payload: JSONObject, completion: (Boolean) -> Unit) {
         val host = peerHost

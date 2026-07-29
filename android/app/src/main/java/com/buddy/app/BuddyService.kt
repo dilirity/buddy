@@ -131,17 +131,19 @@ class BuddyService : Service() {
 
     // MARK: - Travel
 
+    private fun snapshotPayload(): JSONObject = JSONObject()
+        .put("traits", Traits.all(this))
+        .put("traitSpecs", JSONObject().also { specs ->
+            for (name in Traits.names(this)) {
+                val (lo, hi) = Traits.bounds(this, name)
+                specs.put(name, JSONObject()
+                    .put("value", Traits.get(this, name)).put("min", lo).put("max", hi))
+            }
+        })
+
     private fun sendHome() {
-        val payload = JSONObject()
+        val payload = snapshotPayload()
             .put("line", "im BACK. phones are small")
-            .put("traits", Traits.all(this))
-            .put("traitSpecs", JSONObject().also { specs ->
-                for (name in Traits.names(this)) {
-                    val (lo, hi) = Traits.bounds(this, name)
-                    specs.put(name, JSONObject()
-                        .put("value", Traits.get(this, name)).put("min", lo).put("max", hi))
-                }
-            })
         coordination.travel(payload) { ok ->
             if (!ok) overlay?.say("hm. cant find the mac. staying here i guess", 5.0, null)
         }
@@ -209,6 +211,9 @@ class BuddyService : Service() {
                 try { JSONObject(it) } catch (e: Exception) { null }
             }
             brain.emit(name, payload)
+            // Spec: every state change replicates immediately. A trait edit
+            // while buddy lives here pushes to the mac right away.
+            if (name == "configChanged") coordination.broadcastState(snapshotPayload())
         }
         // Menu commands from MainActivity (the phone's ᴥ equivalent).
         when (intent?.getStringExtra("cmd")) {
