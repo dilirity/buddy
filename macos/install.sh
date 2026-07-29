@@ -12,6 +12,8 @@ echo "== installing to ~/.buddy =="
 mkdir -p "$HOME/.buddy/bin"
 cp .build/release/Buddy "$HOME/.buddy/bin/Buddy"
 cp bin/buddy-hook "$HOME/.buddy/bin/buddy-hook"
+cp bin/activity-report "$HOME/.buddy/bin/activity-report"
+chmod +x "$HOME/.buddy/bin/activity-report"
 chmod +x "$HOME/.buddy/bin/buddy-hook"
 
 # Seed the live brain without overwriting an evolved one.

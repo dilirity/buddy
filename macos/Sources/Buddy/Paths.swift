@@ -60,6 +60,24 @@ func commonTimer(_ interval: TimeInterval, repeats: Bool, _ block: @escaping (Ti
     return t
 }
 
+// Behavioral telemetry: one JSONL line per observable act, so "are the
+// settings actually shaping behavior" is answerable from data.
+// Read it with ~/.buddy/bin/activity-report.
+func buddyActivity(_ event: String, _ detail: [String: Any] = [:]) {
+    var obj: [String: Any] = ["ts": Date().timeIntervalSince1970, "event": event]
+    obj.merge(detail) { a, _ in a }
+    guard var data = try? JSONSerialization.data(withJSONObject: obj) else { return }
+    data.append(0x0a)
+    let url = BuddyPaths.home.appendingPathComponent("activity.jsonl")
+    if let h = FileHandle(forWritingAtPath: url.path) {
+        h.seekToEndOfFile()
+        h.write(data)
+        try? h.close()
+    } else {
+        try? data.write(to: url)
+    }
+}
+
 func buddyLog(_ msg: String) {
     let line = "\(Date()) \(msg)\n"
     if let h = FileHandle(forWritingAtPath: BuddyPaths.log.path) {

@@ -68,6 +68,7 @@ final class Brain {
     }
 
     func emit(_ name: String, _ payload: [String: Any] = [:]) {
+        buddyActivity("emit", ["name": name])
         guard let hs = handlers[name] else { return }
         // Drop once-handlers before calling so re-registration inside a handler works.
         handlers[name] = hs.filter { !$0.once }

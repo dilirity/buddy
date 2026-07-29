@@ -104,6 +104,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
             self.stopMoving()
             self.bubble.hide()
             self.panel.orderOut(nil)
+            buddyActivity("travelOut")
             self.brain.emit("travelDeparted")
         }
         coordination.onArrive = { [weak self] payload in
@@ -113,6 +114,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
             if let traits = payload["traits"] as? [String: Double] {
                 for (name, value) in traits { _ = Traits.setValue(name, to: value) }
             }
+            buddyActivity("travelIn")
             self.resetPresentation()
             self.panel.orderFrontRegardless()
             self.play("excited")
@@ -192,6 +194,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         guard let anim = sheet.anims[name] else { pendingAnim = nil; return }
         currentAnim = name
         lastAnimChange = Date()
+        buddyActivity("anim", ["name": name])
         frameIndex = 0
         animTimer?.invalidate()
         view.setImage(anim.frames[0])
@@ -252,6 +255,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         moveTarget = t
         chasing = false
         moveSpeed = CGFloat(speed)
+        buddyActivity("move", ["x": Double(t.x), "y": Double(t.y), "speed": speed])
         startMoveTimer()
     }
 
@@ -259,6 +263,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
     // contact, "gaveUp" after 10s of failed chase.
     func chaseCursor(speed: Double) {
         guard !held, !isFrozen, !evolving, !buddyAway else { return }
+        buddyActivity("chase", ["speed": speed])
         moveTarget = nil
         chasing = true
         approachMode = false
@@ -273,6 +278,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
     // cursor-ish" behavior - snapshots of a moving cursor are always wrong.
     func approachCursor(speed: Double, dx: Double, dy: Double) {
         guard !held, !isFrozen, !evolving, !buddyAway else { return }
+        buddyActivity("approach", ["speed": speed, "dx": dx, "dy": dy])
         moveTarget = nil
         chasing = true
         approachMode = true
@@ -350,6 +356,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
 
     func say(_ text: String, seconds: Double, prop propName: String? = nil) {
         guard !isFrozen, !buddyAway else { return }
+        buddyActivity("say", ["text": text, "prop": propName ?? ""])
         // The prop lives and dies with the line: replaced by the next say,
         // stripped when the bubble hides. No parallel cleanup timers.
         setProp(propName)
@@ -374,7 +381,9 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
     }
 
     func warpCursor(to point: NSPoint) -> Bool {
-        guard !buddyAway, allowDisruptive() else { return false }
+        let allowed = !buddyAway && allowDisruptive()
+        buddyActivity("cursorWarp", ["allowed": allowed])
+        guard allowed else { return false }
         warpCursorRaw(to: point)
         return true
     }
@@ -389,7 +398,9 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
 
     // Pin the cursor to buddy for a few seconds - the "steal". One disruptive act.
     func grabCursor(seconds: Double) -> Bool {
-        guard !buddyAway, allowDisruptive() else { return false }
+        let allowed = !buddyAway && allowDisruptive()
+        buddyActivity("cursorGrab", ["allowed": allowed, "seconds": seconds])
+        guard allowed else { return false }
         grabTimer?.invalidate()
         let end = Date().addingTimeInterval(min(max(seconds, 0.5), 8))
         grabTimer = commonTimer(1.0 / 30, repeats: true) { [weak self] t in
@@ -600,11 +611,18 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
     func phoneNotify(_ text: String) -> Bool {
         // Away = buddy IS on the phone; texting it from the mac breaks the fiction.
         guard !buddyAway else { return false }
-        guard Date().timeIntervalSince(lastPhonePush) > 600 else { return false }
+        guard Date().timeIntervalSince(lastPhonePush) > 600 else {
+            buddyActivity("phonePush", ["allowed": false])
+            return false
+        }
         guard let data = try? Data(contentsOf: BuddyPaths.home.appendingPathComponent("phone.json")),
               let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
               let topic = json["topic"] as? String, !topic.isEmpty else { return false }
-        guard allowDisruptive() else { return false }
+        guard allowDisruptive() else {
+            buddyActivity("phonePush", ["allowed": false])
+            return false
+        }
+        buddyActivity("phonePush", ["allowed": true, "text": text])
         lastPhonePush = Date()
         DispatchQueue.global(qos: .utility).async {
             let p = Process()
@@ -642,6 +660,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         unfreezeTimer = commonTimer(TimeInterval(minutes * 60), repeats: false) { [weak self] _ in
             self?.unfreeze()
         }
+        buddyActivity("freeze", ["minutes": minutes])
         buddyLog("frozen for \(minutes) min")
     }
 
@@ -653,6 +672,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         pendingAnim = nil
         play("idle")
         brain.emit("unfrozen")
+        buddyActivity("unfreeze")
         buddyLog("unfrozen")
     }
 
@@ -707,13 +727,17 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
     // Gated music verbs. Starting/changing music spends disruption budget;
     // pausing is always free - stopping noise is never hostile.
     func musicPlay(playlist: String?) -> Bool {
-        guard allowDisruptive() else { return false }
+        let allowed = allowDisruptive()
+        buddyActivity("musicPlay", ["allowed": allowed])
+        guard allowed else { return false }
         music.play(playlist: playlist)
         return true
     }
 
     func musicNext() -> Bool {
-        guard allowDisruptive() else { return false }
+        let allowed = allowDisruptive()
+        buddyActivity("musicNext", ["allowed": allowed])
+        guard allowed else { return false }
         music.next()
         return true
     }
@@ -824,6 +848,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         }
         evolveProcess = p
         beginEvolveUI()
+        buddyActivity("evolveStart")
         buddyLog("evolution started")
         brain.emit("evolveStart")
         // A hung mutation must not pin the menu on "Evolving…" forever.
@@ -847,6 +872,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         evolveItem?.action = #selector(menuEvolveNow)
         view.dragEnabled = true
         let changed = Senses.currentBrainSignature() != evolveStartSignature
+        buddyActivity("evolveEnd", ["changed": changed])
         buddyLog("evolution finished, changed: \(changed)")
         if changed {
             reloadBrainAndSprites()

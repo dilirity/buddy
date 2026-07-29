@@ -1,0 +1,92 @@
+#!/usr/bin/env python3
+"""Buddy behavioral report: reads ~/.buddy/activity.jsonl and answers
+"are the settings actually shaping behavior?"
+
+Usage: activity-report [hours]   (default 24)
+"""
+import json
+import os
+import re
+import sys
+import time
+from collections import Counter
+
+hours = float(sys.argv[1]) if len(sys.argv) > 1 else 24.0
+cutoff = time.time() - hours * 3600
+home = os.path.expanduser("~/.buddy")
+
+events = []
+try:
+    with open(os.path.join(home, "activity.jsonl")) as f:
+        for line in f:
+            try:
+                e = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if e.get("ts", 0) >= cutoff:
+                events.append(e)
+except FileNotFoundError:
+    print("no activity.jsonl yet - run buddy for a while first")
+    sys.exit(0)
+
+traits = {}
+try:
+    with open(os.path.join(home, "traits.json")) as f:
+        traits = {k: v.get("value") for k, v in json.load(f).items()}
+except Exception:
+    pass
+
+print(f"=== buddy activity, last {hours:g}h ({len(events)} events) ===")
+print(f"traits now: {traits}\n")
+
+kinds = Counter(e["event"] for e in events)
+print("events:")
+for k, n in kinds.most_common():
+    print(f"  {k:<12} {n:>5}  ({n / hours:.1f}/h)")
+
+says = [e for e in events if e["event"] == "say"]
+if says:
+    texts = Counter(e.get("text", "") for e in says)
+    repeats = [(t, n) for t, n in texts.most_common(5) if n > 1]
+    print(f"\nsays: {len(says)} total, {len(texts)} unique")
+    if repeats:
+        print("  most repeated:")
+        for t, n in repeats:
+            print(f"    {n}x {t[:60]}")
+
+disruptive = [e for e in events if e["event"] in
+              ("cursorWarp", "cursorGrab", "musicPlay", "musicNext", "phonePush")]
+if disruptive:
+    ok = sum(1 for e in disruptive if e.get("allowed"))
+    denied = len(disruptive) - ok
+    print(f"\ndisruptive acts: {ok} allowed, {denied} denied by budget "
+          f"({ok / hours:.1f}/h allowed)")
+
+emits = Counter(e.get("name", "?") for e in events if e["event"] == "emit")
+behaviors = {k: n for k, n in emits.items()
+             if k.startswith(("test:", "claude:")) or k in
+             ("caught", "gaveUp", "arrived", "poked", "chat", "phoneChat",
+              "configChanged", "idle", "active", "typing")}
+if behaviors:
+    print("\nbehavior events:")
+    for k, n in sorted(behaviors.items(), key=lambda x: -x[1]):
+        print(f"  {k:<24} {n:>4}")
+
+anims = Counter(e.get("name", "?") for e in events if e["event"] == "anim")
+if anims:
+    print("\nanims: " + ", ".join(f"{k}:{n}" for k, n in anims.most_common(8)))
+
+# chat latency lives in buddy.log
+lat = []
+try:
+    with open(os.path.join(home, "buddy.log")) as f:
+        for line in f:
+            m = re.search(r"CHAT-LATENCY (\d+)ms", line)
+            if m:
+                lat.append(int(m.group(1)))
+except FileNotFoundError:
+    pass
+if lat:
+    recent = lat[-20:]
+    print(f"\nchat latency (last {len(recent)}): "
+          f"min {min(recent)}ms / median {sorted(recent)[len(recent) // 2]}ms / max {max(recent)}ms")
