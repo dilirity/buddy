@@ -36,6 +36,10 @@ final class SpriteView: NSView {
     var dragEnabled = true
     private var dragging = false
     private var downPointInWindow: NSPoint = .zero
+    // Carry mode: while Pete drags, the WINDOW stays put (expanded fullscreen)
+    // and only the sprite layer moves - macOS window tiling can't engage with
+    // a window that never moves during the drag.
+    private var carrying = false
     private let sprite = CALayer()
     // Accessory overlay (glasses, hats, ...) - sublayer of sprite so facing
     // flips carry it along automatically.
@@ -58,6 +62,26 @@ final class SpriteView: NSView {
 
     override func layout() {
         super.layout()
+        guard !carrying else { return }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        sprite.frame = bounds
+        prop.frame = sprite.bounds
+        CATransaction.commit()
+    }
+
+    func beginCarry(spriteSize: NSSize, at origin: NSPoint) {
+        carrying = true
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        sprite.frame = NSRect(origin: origin, size: spriteSize)
+        CATransaction.commit()
+    }
+
+    var carriedOrigin: NSPoint { sprite.frame.origin }
+
+    func endCarry() {
+        carrying = false
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         sprite.frame = bounds
@@ -93,7 +117,7 @@ final class SpriteView: NSView {
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard dragEnabled, let win = window else { return }
+        guard dragEnabled, window != nil else { return }
         if !dragging {
             let d = hypot(event.locationInWindow.x - downPointInWindow.x,
                           event.locationInWindow.y - downPointInWindow.y)
@@ -101,9 +125,13 @@ final class SpriteView: NSView {
             dragging = true
             delegate?.spriteDragStarted()
         }
-        let mouse = NSEvent.mouseLocation
-        let origin = NSPoint(x: mouse.x - downPointInWindow.x, y: mouse.y - downPointInWindow.y)
-        win.setFrameOrigin(origin)
+        guard carrying else { return }
+        let p = convert(event.locationInWindow, from: nil)
+        let origin = NSPoint(x: p.x - downPointInWindow.x, y: p.y - downPointInWindow.y)
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        sprite.frame.origin = origin
+        CATransaction.commit()
         delegate?.spriteDragged(to: origin)
     }
 

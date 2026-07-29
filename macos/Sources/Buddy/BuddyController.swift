@@ -702,17 +702,38 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         stopMoving()
         setLayer(behind: false)
         setOpacity(1)
+        bubble.hide()
+        // Carry mode: expand the panel over the whole screen and move only the
+        // sprite layer - the window never drags, so tiling never engages.
+        let spriteFrame = panel.frame
+        let screen = NSScreen.screens.first { $0.frame.intersects(spriteFrame) } ?? NSScreen.main!
+        panel.setFrame(screen.frame, display: true)
+        view.frame = NSRect(origin: .zero, size: screen.frame.size)
+        view.beginCarry(spriteSize: spriteFrame.size,
+                        at: NSPoint(x: spriteFrame.minX - screen.frame.minX,
+                                    y: spriteFrame.minY - screen.frame.minY))
         brain.emit("dragStart")
     }
 
     func spriteDragged(to origin: NSPoint) {
-        bubble.reposition(near: panel.frame)
+        // Bubble stays hidden while carried; nothing follows the layer.
     }
 
     func spriteDragEnded() {
+        // Shrink the panel back around wherever the sprite layer landed.
+        let so = view.carriedOrigin
+        let size = NSSize(width: sheet.pixelSize.width * scale, height: sheet.pixelSize.height * scale)
+        var origin = NSPoint(x: panel.frame.minX + so.x, y: panel.frame.minY + so.y)
+        let screen = NSScreen.screens.first { $0.frame.contains(NSPoint(x: origin.x + size.width / 2, y: origin.y + size.height / 2)) } ?? NSScreen.main
+        if let vis = screen?.visibleFrame {
+            origin.x = min(max(origin.x, vis.minX), vis.maxX - size.width)
+            origin.y = min(max(origin.y, vis.minY), vis.maxY - size.height)
+        }
+        view.endCarry()
+        panel.setFrame(NSRect(origin: origin, size: size), display: true)
+        view.frame = NSRect(origin: .zero, size: size)
         held = false
-        let o = panel.frame.origin
-        brain.emit("dragEnd", ["x": o.x, "y": o.y])
+        brain.emit("dragEnd", ["x": origin.x, "y": origin.y])
     }
 
     func spritePoked() {
