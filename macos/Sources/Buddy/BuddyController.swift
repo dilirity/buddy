@@ -9,6 +9,7 @@ final class BuddyController: NSObject, SpriteViewDelegate {
     private var bubble = SpeechBubble()
     let brain = Brain()
     private let senses = Senses()
+    var coordination: Coordination!
     // Read fresh on every use so settings-window changes apply immediately.
     private var invariants: Invariants { Invariants.load() }
     private let settings = SettingsWindow()
@@ -89,6 +90,25 @@ final class BuddyController: NSObject, SpriteViewDelegate {
         brain.reload()
         senses.controller = self
         senses.start()
+
+        coordination = Coordination(deviceId: "mac", rank: 1, owner: true)
+        coordination.onDepart = { [weak self] in
+            guard let self else { return }
+            self.stopMoving()
+            self.bubble.hide()
+            self.panel.orderOut(nil)
+            self.brain.emit("travelDeparted")
+        }
+        coordination.onArrive = { [weak self] payload in
+            guard let self else { return }
+            self.panel.orderFrontRegardless()
+            self.play("excited")
+            if let line = payload["line"] as? String { self.say(line, seconds: 5) }
+            self.brain.emit("travelArrived", payload)
+        }
+        if !coordination.ownsBuddy {
+            panel.orderOut(nil)
+        }
 
         play("idle")
 
@@ -431,6 +451,17 @@ final class BuddyController: NSObject, SpriteViewDelegate {
 
     // Replies to Pete's phone messages: he initiated, so no disruption budget
     // and no 10-minute narrative gap - just a modest anti-runaway limit.
+    // Real travel over the LAN coordination layer. Payload carries what the
+    // arrival side needs to keep the fiction coherent; full state blob later.
+    func travelOut(line: String, completion: @escaping (Bool) -> Void) {
+        guard coordination != nil, coordination.hasPeer else {
+            completion(false)
+            return
+        }
+        coordination.travel(payload: ["line": line, "traits": Traits.values()],
+                            completion: completion)
+    }
+
     func phoneReply(_ text: String) -> Bool {
         guard Date().timeIntervalSince(lastPhoneReply) > 15 else { return false }
         guard let topic = phoneConfig()?["topic"] as? String, !topic.isEmpty else { return false }

@@ -187,6 +187,24 @@ final class Brain {
         }
         set("phone", phoneJS)
 
+        // Real travel to a discovered peer device. cb(true) = target acked and
+        // buddy is gone from this screen; cb(false) = no peer / timeout, stay.
+        let travelJS: @convention(block) (String, JSValue) -> Void = { [weak self] line, cb in
+            guard let self else { return }
+            let gen = self.generation
+            self.controller?.travelOut(line: line) { [weak self] ok in
+                guard let self, self.generation == gen else { return }
+                cb.call(withArguments: [ok])
+            }
+        }
+        set("travel", travelJS)
+
+        // Whether any peer device is reachable right now.
+        let hasPeerJS: @convention(block) () -> Bool = { [weak self] in
+            self?.controller?.coordination?.hasPeer ?? false
+        }
+        set("hasPeer", hasPeerJS)
+
         // Reply to a message Pete sent from his phone - lightly rate-limited,
         // for use ONLY in response to phoneChat events.
         let phoneReplyJS: @convention(block) (String) -> Bool = { [weak self] text in

@@ -33,6 +33,27 @@ if CommandLine.arguments.contains("--check") {
     exit(ok ? 0 : 1)
 }
 
+// `Buddy --peer-sim`: headless fake peer for testing the coordination layer
+// on localhost. Announces itself as "sim" (rank 2), accepts travel, then
+// sends buddy back after 5s. Two-process protocol test, no Android needed.
+if CommandLine.arguments.contains("--peer-sim") {
+    BuddyPaths.bootstrap()
+    try? FileManager.default.removeItem(
+        at: BuddyPaths.home.appendingPathComponent("coordination-sim.json"))
+    let coord = Coordination(deviceId: "sim", rank: 2, owner: false, listenPort: 47810)
+    coord.onArrive = { payload in
+        print("SIM: buddy arrived, payload line: \(payload["line"] as? String ?? "-")")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+            coord.travel(payload: ["line": "im BACK. the sim was small"]) { ok in
+                print("SIM: travel back \(ok ? "acked" : "FAILED")")
+            }
+        }
+    }
+    coord.onDepart = { print("SIM: buddy departed") }
+    print("SIM: up on 47810, waiting")
+    RunLoop.main.run()
+}
+
 BuddyPaths.bootstrap()
 
 // Single instance: autostart + Raycast/Spotlight launches must not spawn twins.
