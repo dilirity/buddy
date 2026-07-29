@@ -59,6 +59,12 @@ final class BuddyController: NSObject, SpriteViewDelegate {
         return false
     }
 
+    // Buddy is on another device. The brain keeps running (timers, senses),
+    // but nothing it does may be visible or audible here - one buddy, ever.
+    var buddyAway: Bool {
+        coordination != nil && !coordination.ownsBuddy
+    }
+
     func start() {
         if let loaded = SpriteLoader.load(from: BuddyPaths.sprites) {
             sheet = loaded
@@ -212,7 +218,7 @@ final class BuddyController: NSObject, SpriteViewDelegate {
     }
 
     func moveTo(_ target: NSPoint, speed: Double) {
-        guard !held, !isFrozen, !evolving else { return }
+        guard !held, !isFrozen, !evolving, !buddyAway else { return }
         // Clamp so no behavior can walk buddy off screen.
         var t = target
         let size = panel.frame.size
@@ -230,7 +236,7 @@ final class BuddyController: NSObject, SpriteViewDelegate {
     // Live pursuit: retargets to the cursor every frame. Emits "caught" on
     // contact, "gaveUp" after 10s of failed chase.
     func chaseCursor(speed: Double) {
-        guard !held, !isFrozen, !evolving else { return }
+        guard !held, !isFrozen, !evolving, !buddyAway else { return }
         moveTarget = nil
         chasing = true
         approachMode = false
@@ -244,7 +250,7 @@ final class BuddyController: NSObject, SpriteViewDelegate {
     // retargeting every frame. The shared primitive for every "go to the
     // cursor-ish" behavior - snapshots of a moving cursor are always wrong.
     func approachCursor(speed: Double, dx: Double, dy: Double) {
-        guard !held, !isFrozen, !evolving else { return }
+        guard !held, !isFrozen, !evolving, !buddyAway else { return }
         moveTarget = nil
         chasing = true
         approachMode = true
@@ -321,7 +327,7 @@ final class BuddyController: NSObject, SpriteViewDelegate {
     // MARK: - Speech
 
     func say(_ text: String, seconds: Double, prop propName: String? = nil) {
-        guard !isFrozen else { return }
+        guard !isFrozen, !buddyAway else { return }
         // The prop lives and dies with the line: replaced by the next say,
         // stripped when the bubble hides. No parallel cleanup timers.
         setProp(propName)
@@ -346,7 +352,7 @@ final class BuddyController: NSObject, SpriteViewDelegate {
     }
 
     func warpCursor(to point: NSPoint) -> Bool {
-        guard allowDisruptive() else { return false }
+        guard !buddyAway, allowDisruptive() else { return false }
         warpCursorRaw(to: point)
         return true
     }
@@ -361,7 +367,7 @@ final class BuddyController: NSObject, SpriteViewDelegate {
 
     // Pin the cursor to buddy for a few seconds - the "steal". One disruptive act.
     func grabCursor(seconds: Double) -> Bool {
-        guard allowDisruptive() else { return false }
+        guard !buddyAway, allowDisruptive() else { return false }
         grabTimer?.invalidate()
         let end = Date().addingTimeInterval(min(max(seconds, 0.5), 8))
         grabTimer = commonTimer(1.0 / 30, repeats: true) { [weak self] t in
@@ -525,6 +531,8 @@ final class BuddyController: NSObject, SpriteViewDelegate {
     // disruption budget AND a native 10-minute minimum gap - a buzzing phone
     // is the most disruptive thing buddy can do.
     func phoneNotify(_ text: String) -> Bool {
+        // Away = buddy IS on the phone; texting it from the mac breaks the fiction.
+        guard !buddyAway else { return false }
         guard Date().timeIntervalSince(lastPhonePush) > 600 else { return false }
         guard let data = try? Data(contentsOf: BuddyPaths.home.appendingPathComponent("phone.json")),
               let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
