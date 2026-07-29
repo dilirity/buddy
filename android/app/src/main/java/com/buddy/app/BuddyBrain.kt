@@ -182,7 +182,7 @@ class BuddyBrain(private val appContext: Context, private val shell: Shell) {
         // What is real on THIS device - the brain gates behaviors on it.
         buddy.setProperty("caps", jsFn("caps") { _ -> 
             c.parseJSON(
-                """{"cursor":false,"windows":false,"layer":false,"music":false,""" +
+                """{"cursor":false,"windows":false,"layer":false,"music":false,"glyph":true,""" +
                 """"think":false,"phonePush":true,"feedback":true,"claudeEvents":false}"""
             )
         })
@@ -211,6 +211,12 @@ class BuddyBrain(private val appContext: Context, private val shell: Shell) {
             null
         })
         buddy.setProperty("layer", jsFn("layer") { _ ->  null }) // no window layers on a phone
+        // Nothing Phone glyph lights: breathing pulse, cycles 1-6.
+        buddy.setProperty("glyph", jsFn("glyph") { args ->
+            val cycles = (args.getOrNull(0) as? Number)?.toInt() ?: 2
+            main.post { BuddyService.glyphPulse(cycles) }
+            null
+        })
 
         // Movement
         buddy.setProperty("moveTo", jsFn("moveTo") { args ->

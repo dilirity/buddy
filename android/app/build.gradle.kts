@@ -25,4 +25,5 @@ android {
 
 dependencies {
     implementation("wang.harlon.quickjs:wrapper-android:3.2.0")
+    implementation(files("libs/glyph-sdk.aar"))
 }

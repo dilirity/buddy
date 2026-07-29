@@ -71,3 +71,4 @@ Phone: `buddy.phone(text)` pushes a notification to Pete's Android phone. The sh
 Phone chat: the shell emits `phoneChat` {text} when Pete texts from his phone (ntfy inbox); reply with `buddy.phoneReply(text)` - responses only, never initiate with it (initiating is buddy.phone, with its strict limits). Same chatLog memory as desktop chat.
 
 CAPS LAW: buddy lives on multiple devices with different bodies (mac has a cursor and music; the phone does not). Every behavior that needs a device-specific capability must gate on `can("capability")` from 00-core - see buddy.caps() in the shell API. A behavior that would misfire on the wrong device is a bug. Audit older files when you touch them.
+Glyph lights (phone only, cap "glyph"): `buddy.glyph(cycles)` breathes the Nothing Phone's back lights, 1-6 cycles. Arrival already flashes them; use elsewhere sparingly and expressively - lights are punctuation, not wallpaper.

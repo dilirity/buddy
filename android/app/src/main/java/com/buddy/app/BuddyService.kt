@@ -23,6 +23,8 @@ class BuddyService : Service() {
         @Volatile var testModeUntil = 0L
         @Volatile var running = false
         @Volatile var peerOnline = false
+        @Volatile private var instance: BuddyService? = null
+        fun glyphPulse(cycles: Int) { instance?.glyph?.pulse(cycles) }
         val testMode: Boolean get() = System.currentTimeMillis() < testModeUntil
     }
 
@@ -36,11 +38,15 @@ class BuddyService : Service() {
     // a talking desktop. Pete-editable via files, not the mutator.
     private var maxDisruptivePerHour = 3
 
+    private val glyph by lazy { GlyphBridge(this) }
+
     override fun onCreate() {
         super.onCreate()
         running = true
+        instance = this
         startForeground(1, buildNotification())
         loadInvariants()
+        glyph.init()
 
         val sheet = SpriteSheet(this)
         val shell = object : BuddyOverlay(
@@ -77,6 +83,7 @@ class BuddyService : Service() {
             overlay?.show(payload.optString("line").takeIf { it.isNotEmpty() }) {
                 brain.emit("travelArrived", payload)
             }
+            glyph.pulse(3)
         }
         coordination.onDepart = {
             brain.emit("travelDeparted")
@@ -255,8 +262,10 @@ class BuddyService : Service() {
 
     override fun onDestroy() {
         running = false
+        instance = null
         try { unregisterReceiver(senses) } catch (e: Exception) { Log.w("BuddyService", "$e") }
         coordination.stop()
+        glyph.shutdown()
         brain.shutdown()
         overlay?.hide()
         super.onDestroy()

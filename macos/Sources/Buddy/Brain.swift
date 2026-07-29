@@ -113,7 +113,7 @@ final class Brain {
 
         // What is real on THIS device - the brain gates behaviors on it.
         let caps: @convention(block) () -> [String: Bool] = {
-            ["cursor": true, "windows": true, "layer": true, "music": true,
+            ["cursor": true, "windows": true, "layer": true, "music": true, "glyph": false,
              "think": true, "phonePush": true, "feedback": true, "claudeEvents": true]
         }
         set("caps", caps)
@@ -259,6 +259,10 @@ final class Brain {
             self?.controller?.setOpacity(v)
         }
         set("opacity", opacity)
+
+        // Nothing Phone glyph lights - real only on the phone; stub here.
+        let glyphJS: @convention(block) (Double) -> Void = { _ in }
+        set("glyph", glyphJS)
 
         // buddy.prop("glasses") dons an accessory from sprites.json props;
         // buddy.prop(null) removes it.
