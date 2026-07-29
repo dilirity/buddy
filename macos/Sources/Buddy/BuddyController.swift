@@ -470,8 +470,28 @@ final class BuddyController: NSObject, SpriteViewDelegate {
             completion(false)
             return
         }
-        coordination.travel(payload: ["line": line, "traits": Traits.values()],
-                            completion: completion)
+        coordination.travel(payload: ["line": line, "traits": Traits.values()]) { [weak self] ok in
+            if !ok { self?.ntfyPoke() }
+            completion(ok)
+        }
+    }
+
+    // ntfy wake channel: the phone app looked reachable but did not answer -
+    // poke it so a tap on the notification revives the service.
+    private func ntfyPoke() {
+        guard let topic = phoneConfig()?["topic"] as? String, !topic.isEmpty else { return }
+        DispatchQueue.global(qos: .utility).async {
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: "/usr/bin/curl")
+            p.arguments = ["-s", "-m", "10", "-H", "Title: buddy",
+                           "-H", "Click: buddy://wake",
+                           "-d", "buddy tried to visit but your phone didnt answer. tap to wake the app.",
+                           "https://ntfy.sh/\(topic)"]
+            p.standardOutput = Pipe()
+            p.standardError = Pipe()
+            try? p.run()
+            p.waitUntilExit()
+        }
     }
 
     func phoneReply(_ text: String) -> Bool {

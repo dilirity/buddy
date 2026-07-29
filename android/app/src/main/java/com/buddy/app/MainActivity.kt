@@ -56,6 +56,11 @@ class MainActivity : Activity() {
         root.addView(batteryBtn)
         root.addView(serviceBtn)
         setContentView(root)
+
+        // Arrived via the ntfy wake poke (buddy:// link): revive the service.
+        if (intent?.data?.scheme == "buddy" && Settings.canDrawOverlays(this)) {
+            startForegroundService(Intent(this, BuddyService::class.java))
+        }
     }
 
     override fun onResume() {
