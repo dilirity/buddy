@@ -125,6 +125,12 @@ final class BuddyController: NSObject, SpriteViewDelegate {
                 for (name, value) in traits { _ = Traits.setValue(name, to: value) }
             }
         }
+        coordination.onTraitSet = { [weak self] name, value in
+            // Follower device's settings edit: apply here (clamped), let the
+            // trait watcher fire configChanged + broadcast as usual.
+            _ = Traits.setValue(name, to: value)
+            _ = self
+        }
         if !coordination.ownsBuddy {
             panel.orderOut(nil)
         }

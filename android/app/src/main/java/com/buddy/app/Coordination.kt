@@ -209,6 +209,13 @@ class Coordination(context: Context, private val onUi: Handler = Handler(Looper.
                         Log.i(TAG, "travel in, epoch $epoch")
                         onUi.post { onArrive?.invoke(payload) }
                     }
+                    "traitSet" -> {
+                        if (ownsBuddy) {
+                            val name = frame.optString("name")
+                            val value = frame.optDouble("value", 0.5)
+                            if (name.isNotEmpty()) onUi.post { onTraitSet?.invoke(name, value) }
+                        }
+                    }
                     "claim", "state" -> {
                         if (type == "state") {
                             frame.optJSONObject("payload")?.let {
@@ -241,6 +248,27 @@ class Coordination(context: Context, private val onUi: Handler = Handler(Looper.
         frame.put("v", 1).put("s", SECRET).put("from", "phone")
         sock.getOutputStream().write((frame.toString() + "\n").toByteArray())
         sock.getOutputStream().flush()
+    }
+
+    // Ask the owner to change a trait: one soul, owner holds the pen. The
+    // owner applies (clamped to Pete's bounds) and its state broadcast echoes
+    // the result back to every device.
+    var onTraitSet: ((String, Double) -> Unit)? = null
+
+    fun sendTraitSet(name: String, value: Double) {
+        val host = peerHost ?: return
+        val port = peerPort
+        Thread {
+            try {
+                val sock = Socket()
+                sock.connect(InetSocketAddress(host, port), 5000)
+                send(sock, JSONObject().put("type", "traitSet").put("epoch", epoch)
+                    .put("name", name).put("value", value))
+                sock.close()
+            } catch (e: Exception) {
+                Log.w(TAG, "traitSet send: $e")
+            }
+        }.start()
     }
 
     // Full-snapshot state event to the peer (spec: replication on every state

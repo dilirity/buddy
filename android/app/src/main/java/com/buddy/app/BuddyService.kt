@@ -21,6 +21,7 @@ class BuddyService : Service() {
         // Read by MainActivity for menu labels; written only here.
         @Volatile var frozenState = false
         @Volatile var testModeUntil = 0L
+        @Volatile var running = false
         val testMode: Boolean get() = System.currentTimeMillis() < testModeUntil
     }
 
@@ -36,6 +37,7 @@ class BuddyService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        running = true
         startForeground(1, buildNotification())
         loadInvariants()
 
@@ -85,6 +87,14 @@ class BuddyService : Service() {
         // bounds) in sync even when buddy has never visited.
         coordination.onSnapshot = { snapshot ->
             snapshot.optJSONObject("traitSpecs")?.let { Traits.replaceSpecs(this, it) }
+        }
+        // A follower device asked to change a trait while buddy lives here.
+        coordination.onTraitSet = { name, value ->
+            val from = Traits.get(this, name)
+            Traits.set(this, name, value)
+            brain.emit("configChanged", JSONObject()
+                .put("trait", name).put("from", from).put("to", Traits.get(this, name)))
+            coordination.broadcastState(snapshotPayload())
         }
         coordination.onEmergencyClaim = { snapshot ->
             snapshot.optJSONObject("traitSpecs")?.let { Traits.replaceSpecs(this, it) }
@@ -215,6 +225,10 @@ class BuddyService : Service() {
             // while buddy lives here pushes to the mac right away.
             if (name == "configChanged") coordination.broadcastState(snapshotPayload())
         }
+        // Remote trait edit: buddy lives elsewhere, forward to the owner.
+        intent?.getStringExtra("traitSet")?.let { name ->
+            coordination.sendTraitSet(name, intent.getDoubleExtra("traitValue", 0.5))
+        }
         // Menu commands from MainActivity (the phone's ᴥ equivalent).
         when (intent?.getStringExtra("cmd")) {
             "toggleFreeze" -> {
@@ -239,6 +253,7 @@ class BuddyService : Service() {
     }
 
     override fun onDestroy() {
+        running = false
         try { unregisterReceiver(senses) } catch (e: Exception) { Log.w("BuddyService", "$e") }
         coordination.stop()
         brain.shutdown()

@@ -176,13 +176,21 @@ class MainActivity : Activity() {
         for (name in names) {
             val (lo, hi) = Traits.bounds(this, name)
             settingsSection.addView(sliderRow(name, lo, hi, Traits.get(this, name), "%.2f") { v ->
-                val from = Traits.get(this, name)
-                Traits.set(this, name, v)
-                emitToService("configChanged", JSONObject()
-                    .put("trait", name).put("from", from).put("to", v))
+                if (buddyIsHere()) {
+                    // Owner path: apply locally, tell the brain, replicate out.
+                    val from = Traits.get(this, name)
+                    Traits.set(this, name, v)
+                    emitToService("configChanged", JSONObject()
+                        .put("trait", name).put("from", from).put("to", v))
+                } else {
+                    // Buddy lives elsewhere: ask the owner over the network;
+                    // its broadcast echoes the clamped result back here.
+                    startService(Intent(this, BuddyService::class.java)
+                        .putExtra("traitSet", name).putExtra("traitValue", v))
+                }
             })
         }
-        settingsSection.addView(note("sliders move within each trait's min/max drift bounds (from the mac)."))
+        settingsSection.addView(note("one buddy, one soul - edits reach it wherever it lives."))
 
         settingsSection.addView(header("Limits"))
         val inv = File(filesDir, "invariants.json")
@@ -287,10 +295,7 @@ class MainActivity : Activity() {
         return row
     }
 
-    private fun serviceRunning(): Boolean {
-        val am = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-        @Suppress("DEPRECATION")
-        return am.getRunningServices(Int.MAX_VALUE)
-            .any { it.service.className == BuddyService::class.java.name }
-    }
+    // The service maintains its own flag - the getRunningServices API is
+    // deprecated and unreliable, which had this button lying about state.
+    private fun serviceRunning(): Boolean = BuddyService.running
 }

@@ -21,6 +21,8 @@ final class Coordination {
     var onDepart: (() -> Void)?
     // Every replicated state snapshot from the current owner (traits sync).
     var onSnapshot: (([String: Any]) -> Void)?
+    // A follower asked to change a trait while we own buddy.
+    var onTraitSet: ((String, Double) -> Void)?
 
     private let queue = DispatchQueue(label: "buddy.coord")
     private var listener: NWListener?
@@ -165,6 +167,19 @@ final class Coordination {
         }
     }
 
+    // Ask the current owner to change a trait (we are a follower). The
+    // owner's broadcast echoes the clamped result back.
+    func sendTraitSet(name: String, value: Double) {
+        queue.async {
+            guard !self.ownsBuddy, let (_, endpoint) = self.peers.first else { return }
+            let conn = NWConnection(to: endpoint, using: .tcp)
+            conn.start(queue: self.queue)
+            self.send(["type": "traitSet", "epoch": self.epoch,
+                       "name": name, "value": value], on: conn)
+            self.queue.asyncAfter(deadline: .now() + 2) { conn.cancel() }
+        }
+    }
+
     // On meeting a peer: exchange hellos so a stale device learns the current
     // epoch before doing anything (cold-start grace + zombie correction).
     private func hello(_ name: String) {
@@ -249,6 +264,12 @@ final class Coordination {
             let payload = frame["payload"] as? [String: Any] ?? [:]
             buddyLog("coord: travel in, epoch \(epoch)")
             DispatchQueue.main.async { self.onArrive?(payload) }
+
+        case "traitSet":
+            if ownsBuddy, let name = frame["name"] as? String,
+               let value = (frame["value"] as? NSNumber)?.doubleValue {
+                DispatchQueue.main.async { self.onTraitSet?(name, value) }
+            }
 
         case "claim", "state":
             if type == "state", let payload = frame["payload"] as? [String: Any],
