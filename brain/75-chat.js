@@ -73,7 +73,9 @@ globalThis.handleChatMessage = function (text, source) {
   } else {
     buddy.say(pickFresh(["hmm...", "thinking...", "processing. rudely.", "one sec. consulting my neurons"]), 20);
   }
+  const tSent = Date.now();
   (buddy.thinkNow || buddy.think)(prompt, (t) => {
+    buddy.log("CHAT-LATENCY " + (Date.now() - tSent) + "ms (" + source + ")");
     let obj = null;
     if (t) {
       try {
