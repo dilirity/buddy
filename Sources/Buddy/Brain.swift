@@ -258,6 +258,12 @@ final class Brain {
             Traits.values()
         }
         traits.setObject(traitAll, forKeyedSubscript: "all" as NSString)
+        // Clamped to the trait's min/max bounds - for acting on Pete's chat
+        // requests ("be quieter"). Bounds stay Pete-only.
+        let traitSet: @convention(block) (String, Double) -> Bool = { name, value in
+            Traits.setValue(name, to: value)
+        }
+        traits.setObject(traitSet, forKeyedSubscript: "set" as NSString)
         buddy.setObject(traits, forKeyedSubscript: "traits" as NSString)
 
         // buddy.memory

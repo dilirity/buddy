@@ -27,6 +27,21 @@ enum Traits {
     static func values() -> [String: Double] {
         load().mapValues { $0.clamped }
     }
+
+    // Write one trait's value, clamped to its bounds. The bounds themselves
+    // are only ever edited by Pete.
+    static func setValue(_ name: String, to value: Double) -> Bool {
+        guard let data = try? Data(contentsOf: BuddyPaths.traits),
+              var json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              var spec = json[name] as? [String: Any] else { return false }
+        let lo = (spec["min"] as? NSNumber)?.doubleValue ?? 0
+        let hi = (spec["max"] as? NSNumber)?.doubleValue ?? 1
+        spec["value"] = (Swift.min(Swift.max(value, lo), hi) * 100).rounded() / 100
+        json[name] = spec
+        guard let out = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]) else { return false }
+        try? out.write(to: BuddyPaths.traits)
+        return true
+    }
 }
 
 struct Invariants {
