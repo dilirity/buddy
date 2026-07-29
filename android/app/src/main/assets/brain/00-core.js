@@ -86,6 +86,13 @@ globalThis.runAct = function (steps, done) {
       buddy.prop(s.prop);
       bareProp = true;
     }
+    // A step needing a capability this device lacks aborts the act cleanly -
+    // CAPS LAW enforced at the framework level, no miming verbs that cannot run.
+    if ((s.chase || s.approach) && !can("cursor")) {
+      buddy.log("act aborted: step needs cursor");
+      buddy.play("idle");
+      return finish();
+    }
     if (s.chase) buddy.chase(s.chase);
     if (s.approach) buddy.approach(s.approach.speed || 200, s.approach.dx || 0, s.approach.dy || 0);
     if (s.moveTo) buddy.moveTo(s.moveTo.x, s.moveTo.y, s.moveTo.speed || 160);

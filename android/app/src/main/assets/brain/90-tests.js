@@ -83,6 +83,7 @@ buddy.on("caught", () => {
 });
 
 buddy.on("test:clingy", () => {
+  if (!can("cursor")) { buddy.say("no cursor to visit here. YOU come here", 4); return; }
   const c = buddy.cursor.pos();
   const s = buddy.screen();
   const side = c.x > s.x + s.w - 160 ? -70 : c.x < s.x + 160 ? 70 : chance(0.5) ? 70 : -70;
