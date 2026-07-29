@@ -26,13 +26,15 @@ class MainActivity : Activity() {
     private lateinit var freezeBtn: Button
     private lateinit var testModeBtn: Button
 
+    private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(60, 120, 60, 60)
+            setPadding(dp(20), dp(48), dp(20), dp(24))
         }
-        status = TextView(this).apply { textSize = 15f; setPadding(0, 0, 0, 40) }
+        status = TextView(this).apply { textSize = 15f; setPadding(0, 0, 0, dp(16)) }
         overlayBtn = Button(this).apply {
             text = "grant overlay permission"
             setOnClickListener {
@@ -206,35 +208,43 @@ class MainActivity : Activity() {
 
     private fun header(text: String) = TextView(this).apply {
         this.text = text
-        textSize = 16f
+        textSize = 17f
         setTypeface(null, Typeface.BOLD)
-        setPadding(0, 50, 0, 10)
+        setPadding(0, dp(28), 0, dp(10))
     }
 
     private fun note(text: String) = TextView(this).apply {
         this.text = text
-        textSize = 11f
+        textSize = 12f
         alpha = 0.6f
-        setPadding(0, 6, 0, 6)
+        setPadding(0, dp(4), 0, dp(12))
     }
 
     private fun sliderRow(label: String, min: Double, max: Double, value: Double,
                           format: String, onChange: (Double) -> Unit): LinearLayout {
-        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(0, dp(8), 0, dp(8))
+        }
         val name = TextView(this).apply {
             text = label
+            textSize = 14f
             typeface = Typeface.MONOSPACE
-            width = 340
+            width = dp(120)
         }
         val valueLabel = TextView(this).apply {
             text = String.format(format, value)
+            textSize = 14f
             typeface = Typeface.MONOSPACE
-            width = 130
+            width = dp(48)
+            gravity = android.view.Gravity.END
         }
         val seek = SeekBar(this).apply {
             this.max = 100
             progress = if (max > min) (((value - min) / (max - min)) * 100).toInt() else 0
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                .apply { marginStart = dp(8); marginEnd = dp(8) }
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(sb: SeekBar, p: Int, fromUser: Boolean) {
                     valueLabel.text = String.format(format, min + (max - min) * p / 100.0)
