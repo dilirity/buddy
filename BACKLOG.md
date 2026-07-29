@@ -2,6 +2,7 @@
 
 ## Act outcomes / state machine
 - Movement steps need explicit success/failure: approach timeout currently emits plain `arrived`, so acts celebrate beside nothing (clingy heart with no cursor nearby). Add outcome payload (`{timedOut: true}`) or a distinct `approachFail` event; runAct branches on it; behaviors get sad-path reactions ("i walked all this way and you LEFT").
+- Anti-repetition: the same behavior can fire repeatedly in a row when its trait is high. The act scheduler should own recency - a behavior that just ran gets deprioritized regardless of dice. (Also noted to the mutator in feedback.md as a brain-side interim.)
 - Behaviors still occasionally overlap. Current discipline is voluntary (`state.busy` + guards). Consider a real act scheduler in core: one act at a time, priority levels (chat > acts > ambient), queued or dropped - native-enforced like the evolve lockdown.
 
 ## Hide and seek
