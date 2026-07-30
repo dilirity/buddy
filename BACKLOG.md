@@ -25,8 +25,3 @@
 
 ## Android companion (the expedition)
 - Real buddy-on-phone: Android overlay app ("draw over other apps"), renders the same sprites.json pixel maps, subscribes to the ntfy topic for arrive/return commands and publishes phone-side events (pokes) back. Presence handoff: buddy exists on ONE device at a time - Mac hides it while abroad, phone walks it in. Mini-brain on the phone (idle/wander/poke/lines); personality, evolution, memory stay on the Mac; trip reports on return. Separate repo, Kotlin, days of work - the current ghost-at-the-edge travel act is the placeholder fiction until then.
-
-## Distribution (if buddy ever ships to other folks)
-- Connectivity: LAN-first with automatic relay fallback (outbound WebSocket, ntfy-style - already proven by phone chat working on isolated hotel wifi). E2E-encrypt payloads with the per-install secret; relay carries ciphertext. No user setup, no Tailscale ask.
-- The bigger blocker: buddy's brain runs on the owner's claude CLI auth. Rollout = bring-your-own-Claude (developers only) or a paid inference backend (consumer). Economics decision, not engineering.
-- Also implied: signed/notarized app bundles (no more TCC re-grant dance), real Nothing API key for glyphs, onboarding that hides every file we currently hand-edit.
