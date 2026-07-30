@@ -43,7 +43,7 @@ final class SettingsWindow: NSObject {
             for (key, entry) in config {
                 stack.addArrangedSubview(configRow(key: key, entry: entry))
             }
-            stack.addArrangedSubview(note("Facts buddy's behaviors rely on (brain/config.json). Evolutions add new ones; they show up here on their own."))
+            stack.addArrangedSubview(note("Facts buddy's behaviors rely on. Your values live in ~/.buddy/config.json; evolutions add new ones and they show up here on their own."))
         }
 
         stack.addArrangedSubview(header("Limits"))
@@ -118,17 +118,26 @@ final class SettingsWindow: NSObject {
         }
     }
 
-    // MARK: - Configurables (brain/config.json)
-    // Entries are self-describing ({value, type, label}) so evolutions can add
-    // new configurables and have them editable here without an app rebuild.
+    // MARK: - Configurables
+    // Schema (brain/config-schema.json, mutator-owned) declares {type, label,
+    // default}; values (~/.buddy/config.json, human-owned, unversioned) hold
+    // only keys the human changed. Split on purpose: the brain repo's
+    // failed-evolution revert must never touch user preferences. Entries are
+    // self-describing so evolutions add configurables without an app rebuild.
 
-    private var configURL: URL { BuddyPaths.brain.appendingPathComponent("config.json") }
+    private var schemaURL: URL { BuddyPaths.brain.appendingPathComponent("config-schema.json") }
 
     private func loadConfig() -> [(String, [String: Any])] {
-        guard let data = try? Data(contentsOf: configURL),
+        guard let data = try? Data(contentsOf: schemaURL),
               let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return [] }
+        let values = (try? Data(contentsOf: BuddyPaths.config))
+            .flatMap { (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] } ?? [:]
         return json.compactMap { key, value in
-            (value as? [String: Any]).map { (key, $0) }
+            (value as? [String: Any]).map { entry in
+                var e = entry
+                e["value"] = values[key] ?? entry["default"]
+                return (key, e)
+            }
         }.sorted { $0.0 < $1.0 }
     }
 
@@ -232,7 +241,7 @@ final class SettingsWindow: NSObject {
     @objc private func configTextChanged(_ sender: NSTextField) {
         guard let key = configKey(sender) else { return }
         let text = sender.stringValue
-        if let data = try? Data(contentsOf: configURL),
+        if let data = try? Data(contentsOf: schemaURL),
            let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
            (json[key] as? [String: Any])?["type"] as? String == "number" {
             saveConfigValue(key, value: Double(text) ?? 0)
@@ -247,12 +256,12 @@ final class SettingsWindow: NSObject {
     }
 
     private func saveConfigValue(_ key: String, value: Any) {
-        guard let data = try? Data(contentsOf: configURL),
-              var json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
-              var entry = json[key] as? [String: Any] else { return }
-        entry["value"] = value
-        json[key] = entry
-        write(json, to: configURL)
+        // Missing values file is normal (fresh install, or deleted by hand -
+        // everything falls back to schema defaults); recreate it on first tweak.
+        var json = (try? Data(contentsOf: BuddyPaths.config))
+            .flatMap { (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] } ?? [:]
+        json[key] = value
+        write(json, to: BuddyPaths.config)
     }
 
     private func saveTrait(_ name: String, value: Double) {

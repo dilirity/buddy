@@ -1,7 +1,0 @@
-{
-  "eveningStart": { "value": 16, "type": "hour", "label": "evening starts" },
-  "quitNagStart": { "value": 16.75, "type": "hour", "label": "quit nagging starts" },
-  "quitNagEnd": { "value": 19.5, "type": "hour", "label": "quit nagging ends" },
-  "workdayEnd": { "value": 17, "type": "hour", "label": "workday ends" },
-  "nightEnd": { "value": 22, "type": "hour", "label": "night winds down" }
-}

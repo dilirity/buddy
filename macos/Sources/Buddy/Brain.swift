@@ -371,6 +371,16 @@ final class Brain {
         }
         set("data", dataJS)
 
+        // User preference values (~/.buddy/config.json) - outside the brain repo
+        // on purpose: the mutator's failed-evolution revert wipes the brain dir,
+        // and user preferences must survive that. Schema lives in the brain
+        // (config-schema.json); cfg() in 00-core merges the two.
+        let userConfigJS: @convention(block) () -> Any? = {
+            guard let data = try? Data(contentsOf: BuddyPaths.config) else { return nil }
+            return try? JSONSerialization.jsonObject(with: data)
+        }
+        set("userConfig", userConfigJS)
+
         let thinkJS: @convention(block) (String, JSValue) -> Void = { [weak self] prompt, cb in
             guard let self else { return }
             let gen = self.generation

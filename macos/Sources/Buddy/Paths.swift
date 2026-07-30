@@ -18,6 +18,7 @@ enum BuddyPaths {
     static let traits = home.appendingPathComponent("traits.json")
     static let invariants = home.appendingPathComponent("invariants.json")
     static let memory = home.appendingPathComponent("memory.json")
+    static let config = home.appendingPathComponent("config.json")
     static let events = home.appendingPathComponent("events.jsonl")
     static let log = home.appendingPathComponent("buddy.log")
 
