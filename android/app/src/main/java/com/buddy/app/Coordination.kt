@@ -17,7 +17,11 @@ import java.net.Socket
 // mDNS announce/browse (NSD), JSON-lines TCP, epochs, travel both ways.
 class Coordination(context: Context, private val onUi: Handler = Handler(Looper.getMainLooper())) {
     companion object {
-        const val SECRET = "buddy-doorknob"
+        // Legacy shared literal - only the migration default. Real installs
+        // carry a per-pair secret in prefs ("secret"); the mac side reads its
+        // own from ~/.buddy/secret, and re-keying means writing the same
+        // value on both sides. Never ship new pairings on the literal.
+        const val LEGACY_SECRET = "buddy-doorknob"
         const val SERVICE_TYPE = "_buddy._tcp."
         const val PORT = 47800
         const val HB_PORT = 47801
@@ -32,6 +36,7 @@ class Coordination(context: Context, private val onUi: Handler = Handler(Looper.
     }
 
     private val prefs = context.getSharedPreferences("coordination", Context.MODE_PRIVATE)
+    private val secret: String get() = prefs.getString("secret", null) ?: LEGACY_SECRET
     var epoch: Int
         get() = prefs.getInt("epoch", 0)
         private set(v) { prefs.edit().putInt("epoch", v).apply() }
@@ -135,7 +140,7 @@ class Coordination(context: Context, private val onUi: Handler = Handler(Looper.
                     val frame = try {
                         JSONObject(String(packet.data, 0, packet.length))
                     } catch (e: Exception) { continue }
-                    if (frame.optString("s") != SECRET) continue
+                    if (frame.optString("s") != secret) continue
                     if (frame.optString("from") == "phone") continue
                     macLastSeen = System.currentTimeMillis()
                     macOwns = frame.optBoolean("owner", false)
@@ -153,7 +158,7 @@ class Coordination(context: Context, private val onUi: Handler = Handler(Looper.
                 peerHost?.let { host ->
                     try {
                         val frame = JSONObject()
-                            .put("v", 1).put("s", SECRET).put("from", "phone")
+                            .put("v", 1).put("s", secret).put("from", "phone")
                             .put("type", "heartbeat").put("epoch", epoch)
                             .put("owner", ownsBuddy)
                         val bytes = frame.toString().toByteArray()
@@ -195,7 +200,7 @@ class Coordination(context: Context, private val onUi: Handler = Handler(Looper.
             while (true) {
                 val line = reader.readLine() ?: break
                 val frame = try { JSONObject(line) } catch (e: Exception) { continue }
-                if (frame.optString("s") != SECRET) continue
+                if (frame.optString("s") != secret) continue
                 val fEpoch = frame.optInt("epoch", -1)
                 val type = frame.optString("type")
                 if (type != "hello" && fEpoch < epoch) continue
@@ -253,7 +258,7 @@ class Coordination(context: Context, private val onUi: Handler = Handler(Looper.
     }
 
     private fun send(sock: Socket, frame: JSONObject) {
-        frame.put("v", 1).put("s", SECRET).put("from", "phone")
+        frame.put("v", 1).put("s", secret).put("from", "phone")
         sock.getOutputStream().write((frame.toString() + "\n").toByteArray())
         sock.getOutputStream().flush()
     }
@@ -321,7 +326,7 @@ class Coordination(context: Context, private val onUi: Handler = Handler(Looper.
                 while (true) {
                     val line = reader.readLine() ?: break
                     val frame = try { JSONObject(line) } catch (e: Exception) { continue }
-                    if (frame.optString("s") == SECRET &&
+                    if (frame.optString("s") == secret &&
                         frame.optString("type") == "travel-ack" &&
                         frame.optInt("epoch") == proposed) {
                         ok = true
