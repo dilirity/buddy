@@ -121,12 +121,12 @@ Positioning: mac-only is the complete v1 product. Phone is "experimental, option
 
 Problem: mutator/prompt.md hardcodes Pete's world (two bodies, travel, glyph, phone chat). A mac-only user's mutator would evolve behavior that never runs.
 
-Fix:
+As built:
 
-- Split prompt.md into static core (laws, API docs, staging via runAct, TRAIT LAW, SCHEDULER LAW, VARIETY RULE, feedback/wishes mechanics) plus conditional sections tagged by capability: two-bodies/travel, glyph, music, phone chat.
-- mutator/run.sh assembles the final prompt per run from actual installation state: peers ever seen, per-device caps, think availability. The mutator is told "you have one body, a mac" or "two bodies; the phone has glyph" - never a hypothetical.
-- Core prompt gains one law: never write behavior for a capability not listed in this prompt. Runtime caps abort in runAct remains as the second line of defense.
-- Side benefit for existing installs: a phone unseen for N days can be dropped from the assembled prompt, deprioritizing travel evolutions while away.
+- prompt.md is the static core (laws, API docs, staging, TRAIT/SCHEDULER/VARIETY laws, neutral CAPS LAW). Conditional parts live beside it: prompt-phone.md (phone push/chat, glyph, the whole two-bodies/travel section), prompt-think.md vs prompt-nothink.md (think lanes vs "think returns null, canned lines only").
+- mutator/run.sh `assemble_prompt` concatenates: core, plus phone section only if `~/.buddy/peer-seen` exists, plus the think variant matching spend.json chatEnabled.
+- `peer-seen` is written once by Coordination when any peer is first discovered; setup.sh migrates it for installs that paired before the marker existed (coordination state file present).
+- Core hard rule added (CAPABILITY REALITY): if a device or capability is not described in this prompt, it does not exist for this install - never write behavior for it. Runtime caps abort in runAct remains the second line of defense.
 
 ## Sequencing
 

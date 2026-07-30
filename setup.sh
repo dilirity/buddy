@@ -61,7 +61,7 @@ done
 # them. The nightly SERVICE is not installed here - the app's Setup panel
 # does that, with consent, because it spends the user's Claude usage.
 mkdir -p "$BUDDY_HOME/mutator"
-cp mutator/run.sh mutator/prompt.md "$BUDDY_HOME/mutator/"
+cp mutator/run.sh mutator/prompt*.md "$BUDDY_HOME/mutator/"
 chmod +x "$BUDDY_HOME/mutator/run.sh"
 
 # Brain gets its own git history so the mutator can commit (and revert) itself.
@@ -82,6 +82,11 @@ fi
 # interview. (Fresh installs get it on first launch.)
 if [ "$EXISTING_INSTALL" = 1 ] && [ ! -f "$BUDDY_HOME/onboarded" ]; then
   touch "$BUDDY_HOME/onboarded"
+fi
+
+# This install has paired with a phone before the peer-seen marker existed.
+if [ -f "$BUDDY_HOME/coordination-mac.json" ] && [ ! -f "$BUDDY_HOME/peer-seen" ]; then
+  date +%s > "$BUDDY_HOME/peer-seen"
 fi
 
 # Spend config. Fresh installs spend nothing until consented in the app's

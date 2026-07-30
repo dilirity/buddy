@@ -9,7 +9,22 @@ export BUDDY_SELF=1
 # BUDDY_HOME sandboxing: evolve a test install instead of the live one.
 export BUDDY_HOME="${BUDDY_HOME:-$HOME/.buddy}"
 BRAIN="$BUDDY_HOME/brain"
-PROMPT="$(dirname "$0")/prompt.md"
+# The prompt is assembled from the installation's actual shape: core orders,
+# plus the phone section only when a peer device has ever been seen, plus
+# think guidance matching the chat spend switch. CAPABILITY REALITY law in
+# the core makes this assembly authoritative for the mutator.
+PROMPT_DIR="$(dirname "$0")"
+assemble_prompt() {
+  cat "$PROMPT_DIR/prompt.md"
+  if [ -f "$BUDDY_HOME/peer-seen" ]; then
+    cat "$PROMPT_DIR/prompt-phone.md"
+  fi
+  if python3 -c "import json,sys; sys.exit(0 if json.load(open('$BUDDY_HOME/spend.json')).get('chatEnabled') else 1)" 2>/dev/null; then
+    cat "$PROMPT_DIR/prompt-think.md"
+  else
+    cat "$PROMPT_DIR/prompt-nothink.md"
+  fi
+}
 LOG="$BUDDY_HOME/mutator.log"
 LOCK="$BUDDY_HOME/evolving.lock"
 
@@ -41,7 +56,7 @@ cp "$BRAIN/tests.json" "$BUDDY_HOME/tests.prev.json" 2>/dev/null || true
 # Model for evolution runs, picked in the app's Setup panel (empty = default).
 EVOLVE_MODEL=$(python3 -c "import json; print(json.load(open('$BUDDY_HOME/spend.json')).get('evolutionModel', ''))" 2>/dev/null || true)
 
-claude -p "$(cat "$PROMPT")" \
+claude -p "$(assemble_prompt)" \
   --permission-mode acceptEdits \
   --add-dir "$BUDDY_HOME" \
   ${EVOLVE_MODEL:+--model "$EVOLVE_MODEL"} \

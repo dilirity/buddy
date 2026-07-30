@@ -112,6 +112,14 @@ final class Coordination {
             buddyLog("coord: peers \(Array(found.keys))")
             let names = Array(found.keys).sorted()
             DispatchQueue.main.async { self.knownPeers = names }
+            // Durable "this install has a second device" fact - the mutator's
+            // prompt assembly includes the phone section only when this exists.
+            if !found.isEmpty {
+                let marker = BuddyPaths.home.appendingPathComponent("peer-seen")
+                if !FileManager.default.fileExists(atPath: marker.path) {
+                    try? "\(Date().timeIntervalSince1970)\n".data(using: .utf8)?.write(to: marker)
+                }
+            }
             for name in fresh { self.hello(name) }
         }
         b.start(queue: queue)
