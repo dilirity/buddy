@@ -18,6 +18,20 @@ final class SetupWindow: NSObject {
     // claude lookup shells out; cached per window-open so refresh stays cheap.
     private var claudeVersion: String?
     private var claudeChecked = false
+    // Live Privacy-list state, refreshed each poll via `Buddy --ax-check`.
+    private var axLive = AXIsProcessTrusted()
+
+    private func refreshAxLive() {
+        DispatchQueue.global().async { [weak self] in
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: CommandLine.arguments[0])
+            p.arguments = ["--ax-check"]
+            guard (try? p.run()) != nil else { return }
+            p.waitUntilExit()
+            let ok = p.terminationStatus == 0
+            DispatchQueue.main.async { self?.axLive = ok }
+        }
+    }
 
     private final class Row {
         let dot = NSTextField(labelWithString: "●")
@@ -56,6 +70,7 @@ final class SetupWindow: NSObject {
         NSApp.activate(ignoringOtherApps: true)
         window?.center()
         window?.makeKeyAndOrderFront(nil)
+        refreshAxLive()
         refreshAll()
         refreshTimer?.invalidate()
         refreshTimer = commonTimer(2.0, repeats: true) { [weak self] _ in
@@ -63,6 +78,7 @@ final class SetupWindow: NSObject {
                 self?.refreshTimer?.invalidate()
                 return
             }
+            self.refreshAxLive()
             self.refreshAll()
         }
     }
@@ -80,13 +96,21 @@ final class SetupWindow: NSObject {
         stack.spacing = 14
         stack.edgeInsets = NSEdgeInsets(top: 20, left: 20, bottom: 20, right: 20)
 
-        add(to: stack, Row(title: "Accessibility", tag: "recommended") { row in
-            if AXIsProcessTrusted() {
+        add(to: stack, Row(title: "Accessibility", tag: "recommended") { [weak self] row in
+            // axLive mirrors the Privacy list via a fresh helper process; the
+            // in-process API only ever repeats the launch-time answer.
+            let live = self?.axLive ?? AXIsProcessTrusted()
+            if live {
                 row.set(true, "granted - cursor mischief, typing sense, and the panic gesture work")
             } else {
-                row.set(false, "not granted - no cursor stealing, no typing awareness, no double-Esc panic. "
-                        + "A listed Buddy entry may belong to an OLD build (updates reset grants): remove it "
-                        + "with the minus button, then use Fix here to register this build and toggle it on",
+                var text = "not granted - no cursor stealing, no typing awareness, no double-Esc panic. "
+                    + "A listed Buddy entry may belong to an OLD build (updates reset grants): remove it "
+                    + "with the minus button, then use Fix here to register this build and toggle it on"
+                if AXIsProcessTrusted() {
+                    text = "removed in System Settings - the running buddy keeps its old access until "
+                        + "relaunched (macOS applies revocations at launch). Fix re-registers this build"
+                }
+                row.set(false, text,
                         button: "Fix...") {
                     // Registers THIS binary in the Accessibility list (a stale
                     // entry from a previous build toggles the wrong fingerprint),

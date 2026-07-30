@@ -12,6 +12,13 @@ if let idx = CommandLine.arguments.firstIndex(of: "--render") {
     exit(SpriteLint.render(to: dir) ? 0 : 1)
 }
 
+// `Buddy --ax-check`: report Accessibility as a FRESH process. macOS answers
+// a long-running process with its launch-time grant, so the app polls the
+// live Privacy-list state by spawning this and reading the exit code.
+if CommandLine.arguments.contains("--ax-check") {
+    exit(AXIsProcessTrusted() ? 0 : 1)
+}
+
 if CommandLine.arguments.contains("--check") {
     BuddyPaths.bootstrap()
     var ok = true
