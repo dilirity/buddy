@@ -18,20 +18,9 @@ final class SetupWindow: NSObject {
     // claude lookup shells out; cached per window-open so refresh stays cheap.
     private var claudeVersion: String?
     private var claudeChecked = false
-    // Live Privacy-list state, refreshed each poll via `Buddy --ax-check`.
-    private var axLive = AXIsProcessTrusted()
-
-    private func refreshAxLive() {
-        DispatchQueue.global().async { [weak self] in
-            let p = Process()
-            p.executableURL = URL(fileURLWithPath: CommandLine.arguments[0])
-            p.arguments = ["--ax-check"]
-            guard (try? p.run()) != nil else { return }
-            p.waitUntilExit()
-            let ok = p.terminationStatus == 0
-            DispatchQueue.main.async { self?.axLive = ok }
-        }
-    }
+    // Live Privacy-list state lives with the controller (event-driven via
+    // com.apple.accessibility.api); the panel just reads it.
+    var axProvider: (() -> Bool)?
 
     private final class Row {
         let dot = NSTextField(labelWithString: "●")
@@ -70,7 +59,6 @@ final class SetupWindow: NSObject {
         NSApp.activate(ignoringOtherApps: true)
         window?.center()
         window?.makeKeyAndOrderFront(nil)
-        refreshAxLive()
         refreshAll()
         refreshTimer?.invalidate()
         refreshTimer = commonTimer(2.0, repeats: true) { [weak self] _ in
@@ -78,7 +66,6 @@ final class SetupWindow: NSObject {
                 self?.refreshTimer?.invalidate()
                 return
             }
-            self.refreshAxLive()
             self.refreshAll()
         }
     }
@@ -99,7 +86,7 @@ final class SetupWindow: NSObject {
         add(to: stack, Row(title: "Accessibility", tag: "recommended") { [weak self] row in
             // axLive mirrors the Privacy list via a fresh helper process; the
             // in-process API only ever repeats the launch-time answer.
-            let live = self?.axLive ?? AXIsProcessTrusted()
+            let live = self?.axProvider?() ?? AXIsProcessTrusted()
             if live {
                 row.set(true, "granted - cursor mischief, typing sense, and the panic gesture work")
             } else {

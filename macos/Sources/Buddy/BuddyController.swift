@@ -102,6 +102,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         coordination = Coordination(deviceId: "mac", rank: 1, owner: true)
         setup.peersProvider = { [weak self] in self?.coordination.knownPeers ?? [] }
         setup.musicRequest = { [weak self] in self?.music.requestAccess() }
+        setup.axProvider = { [weak self] in self?.axTrustedLive ?? AXIsProcessTrusted() }
         coordination.onDepart = { [weak self] in
             guard let self else { return }
             self.stopMoving()
@@ -145,6 +146,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         play("idle")
 
         checkUpdateGrantLoss()
+        watchAxChanges()
 
         commonTimer(3600, repeats: true) { [weak self] _ in
             self?.checkEvolutionStaleness()
@@ -386,7 +388,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
     }
 
     func warpCursor(to point: NSPoint) -> Bool {
-        let allowed = !buddyAway && allowDisruptive()
+        let allowed = !buddyAway && axTrustedLive && allowDisruptive()
         buddyActivity("cursorWarp", ["allowed": allowed])
         guard allowed else { return false }
         warpCursorRaw(to: point)
@@ -403,7 +405,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
 
     // Pin the cursor to buddy for a few seconds - the "steal". One disruptive act.
     func grabCursor(seconds: Double) -> Bool {
-        let allowed = !buddyAway && allowDisruptive()
+        let allowed = !buddyAway && axTrustedLive && allowDisruptive()
         buddyActivity("cursorGrab", ["allowed": allowed, "seconds": seconds])
         guard allowed else { return false }
         grabTimer?.invalidate()
@@ -766,6 +768,49 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         guard allowed else { return false }
         music.next()
         return true
+    }
+
+    // Live Accessibility state. The in-process API only repeats its
+    // launch-time answer, so a fresh helper process (`Buddy --ax-check`) asks
+    // macOS for the CURRENT Privacy-list state. Event-driven: macOS broadcasts
+    // com.apple.accessibility.api on any grant change - no polling. Buddy
+    // honors revocation by policy (cursor verbs gate on this) even though the
+    // OS would let the running process coast until relaunch.
+    private(set) var axTrustedLive = AXIsProcessTrusted()
+    private var axDebounce: Timer?
+
+    func watchAxChanges() {
+        DistributedNotificationCenter.default().addObserver(
+            forName: NSNotification.Name("com.apple.accessibility.api"),
+            object: nil, queue: .main
+        ) { [weak self] _ in
+            // Fires for ANY app's grant change, sometimes in bursts - debounce
+            // then check whether it was ours.
+            self?.axDebounce?.invalidate()
+            self?.axDebounce = commonTimer(0.5, repeats: false) { _ in
+                self?.refreshAxLive()
+            }
+        }
+    }
+
+    func refreshAxLive() {
+        DispatchQueue.global().async { [weak self] in
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: CommandLine.arguments[0])
+            p.arguments = ["--ax-check"]
+            guard (try? p.run()) != nil else { return }
+            p.waitUntilExit()
+            let ok = p.terminationStatus == 0
+            DispatchQueue.main.async {
+                guard let self, self.axTrustedLive != ok else { return }
+                self.axTrustedLive = ok
+                buddyLog("accessibility changed live: \(ok)")
+                buddyActivity("axChanged", ["granted": ok])
+                self.say(ok ? "my powers are back!"
+                            : "hey, you took my cursor powers. rude. fine, hands off",
+                         seconds: 6)
+            }
+        }
     }
 
     // Buddy is deliberately unsigned, so macOS keys permission grants to the
