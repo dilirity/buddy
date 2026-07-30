@@ -25,7 +25,7 @@ enum BuddyPaths {
         let fm = FileManager.default
         try? fm.createDirectory(at: home, withIntermediateDirectories: true)
         // Dev convenience: when launched from a checkout via `swift run`, seed the
-        // live brain from ./brain so the app works before install.sh ever runs.
+        // live brain from ./brain so the app works before setup.sh ever runs.
         if !fm.fileExists(atPath: brain.path) {
             let local = URL(fileURLWithPath: fm.currentDirectoryPath).appendingPathComponent("brain")
             if fm.fileExists(atPath: local.path) {

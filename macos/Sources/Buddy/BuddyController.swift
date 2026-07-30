@@ -850,7 +850,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         guard evolveProcess == nil else { return }
         let script = BuddyPaths.home.appendingPathComponent("mutator/run.sh")
         guard FileManager.default.fileExists(atPath: script.path) else {
-            say("no mutator installed. run install.sh first", seconds: 5)
+            say("no mutator installed. run setup.sh first", seconds: 5)
             return
         }
         evolveStartSignature = Senses.currentBrainSignature()

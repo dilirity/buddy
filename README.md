@@ -11,10 +11,11 @@ A pixel goblin that lives on your screen, watches your Claude Code sessions, tal
 ## Install
 
 ```bash
-./macos/install.sh                # build + install to ~/.buddy, seed brain
-~/.buddy/bin/Buddy &              # run
+./setup.sh                        # deps check + build + install to ~/.buddy + secrets + launch
 python3 macos/bin/install-hooks.py  # wire Claude Code hooks (backs up settings.json)
 ```
+
+`setup.sh` never touches `~/.claude` and never installs the nightly evolution service - both need explicit consent (hooks via the script above for now; the in-app Setup panel takes over both as it lands).
 
 Nightly mutator (optional, needs `claude` CLI logged in):
 
