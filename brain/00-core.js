@@ -28,6 +28,17 @@ globalThis.can = (k) => {
   return !m || m[k] !== false;
 };
 
+// Listener names are recorded so the self-check can prove every advertised
+// test id actually has a handler - buddy.on goes straight into the shell,
+// which offers no way to enumerate registrations.
+globalThis._listeners = {};
+(function () {
+  const _on = buddy.on;
+  const _once = buddy.once;
+  buddy.on = (ev, fn) => { _listeners[ev] = true; _on(ev, fn); };
+  buddy.once = (ev, fn) => { _listeners[ev] = true; _once(ev, fn); };
+})();
+
 globalThis.setMood = function (mood, anim) {
   state.mood = mood;
   if (anim) buddy.play(anim);
@@ -233,8 +244,35 @@ buddy.on("unfrozen", () => {
 // drowned out chatter and mischief). One ticker picks fairly: trait-weighted,
 // per-act cooldowns, and never the same act twice in a row.
 globalThis._acts = {};
+// Spec may set ambient: true for behaviors that only make sense self-initiated
+// (never on command); everything else must also appear in tests.json, so the
+// human - and chat - can invoke it. `Buddy --check` enforces the pairing.
 globalThis.registerAct = function (name, spec) {
   _acts[name] = Object.assign({ lastRun: 0 }, spec);
+};
+
+// What buddy can DO on command, for chat: tests.json minus the entries this
+// device cannot perform (an entry's caps array lists required device caps).
+globalThis.chatAbilities = function () {
+  const tests = buddy.data("tests.json") || [];
+  return tests.filter((t) => !t.caps || t.caps.every(can));
+};
+
+// Registry sync audit, run by `Buddy --check`: every advertised ability must
+// have a handler, every scheduled act must be advertised (or opt out with
+// ambient: true). Keeps chat's picture of buddy's abilities from drifting.
+globalThis.brainSelfCheck = function () {
+  const errs = [];
+  const tests = buddy.data("tests.json") || [];
+  const ids = {};
+  tests.forEach((t) => {
+    ids[t.id] = true;
+    if (!_listeners["test:" + t.id]) errs.push("tests.json id '" + t.id + "' has no test:" + t.id + " handler");
+  });
+  for (const name in _acts) {
+    if (!_acts[name].ambient && !ids[name]) errs.push("act '" + name + "' missing from tests.json (add an entry or mark it ambient: true)");
+  }
+  return errs;
 };
 
 // The one way an act actually starts (scheduler and test menu both come

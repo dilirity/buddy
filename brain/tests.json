@@ -25,15 +25,24 @@
   },
   {
     "id": "thinkLine",
-    "title": "AI one-liner (calls claude)"
+    "title": "AI one-liner (calls claude)",
+    "caps": [
+      "think"
+    ]
   },
   {
     "id": "nudge",
-    "title": "Cursor nudge"
+    "title": "Cursor nudge",
+    "caps": [
+      "cursor"
+    ]
   },
   {
     "id": "heist",
-    "title": "Cursor heist"
+    "title": "Cursor heist",
+    "caps": [
+      "cursor"
+    ]
   },
   {
     "id": "sleep",
@@ -49,7 +58,10 @@
   },
   {
     "id": "clingy",
-    "title": "Clingy visit (heart)"
+    "title": "Clingy visit (heart)",
+    "caps": [
+      "cursor"
+    ]
   },
   {
     "id": "walk",
@@ -57,14 +69,34 @@
   },
   {
     "id": "dj",
-    "title": "DJ: play music"
+    "title": "DJ: play music",
+    "caps": [
+      "music"
+    ]
   },
   {
     "id": "djStop",
-    "title": "DJ: stop the music"
+    "title": "DJ: stop the music",
+    "caps": [
+      "music"
+    ]
   },
   {
     "id": "visitPhone",
-    "title": "Visit the phone"
+    "title": "Visit the phone",
+    "caps": [
+      "phonePush"
+    ]
+  },
+  {
+    "id": "mischief",
+    "title": "Cursor mischief (nudge or full heist)",
+    "caps": [
+      "cursor"
+    ]
+  },
+  {
+    "id": "chatter",
+    "title": "Idle chatter"
   }
 ]

@@ -51,6 +51,10 @@ if CommandLine.arguments.contains("--check") {
         print("FAIL: \(brain.loadErrors) JS load error(s), see ~/.buddy/buddy.log")
         ok = false
     }
+    for err in brain.selfCheck() {
+        print("FAIL self-check: \(err)")
+        ok = false
+    }
     print(ok ? "OK" : "CHECK FAILED")
     exit(ok ? 0 : 1)
 }

@@ -33,6 +33,15 @@ final class Brain {
         thinkFast.reset()
     }
 
+    // Registry sync audit defined in 00-core (brainSelfCheck): every advertised
+    // test id needs a handler, every registered act a tests.json entry. Empty
+    // when clean; a brain predating the function counts as clean.
+    func selfCheck() -> [String] {
+        guard let v = context?.evaluateScript(
+            "typeof brainSelfCheck === 'function' ? brainSelfCheck() : []") else { return [] }
+        return v.toArray() as? [String] ?? []
+    }
+
     func reload() {
         generation += 1
         for (_, t) in timers { t.invalidate() }
@@ -370,6 +379,15 @@ final class Brain {
             return try? JSONSerialization.jsonObject(with: data)
         }
         set("data", dataJS)
+
+        // Raw-text sibling of data() for the brain's .md files (persona,
+        // wishes) - chat feeds these to the LLM. Same directory jail.
+        let textJS: @convention(block) (String) -> Any? = { name in
+            guard !name.contains("/"), !name.contains(".."), name.hasSuffix(".md") else { return nil }
+            let url = BuddyPaths.brain.appendingPathComponent(name)
+            return try? String(contentsOf: url, encoding: .utf8)
+        }
+        set("text", textJS)
 
         // User preference values (~/.buddy/config.json) - outside the brain repo
         // on purpose: the mutator's failed-evolution revert wipes the brain dir,

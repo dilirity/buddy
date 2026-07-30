@@ -96,3 +96,6 @@ buddy.on("test:walk", () => {
   buddy.play("walk");
   buddy.moveTo(s.x + 40 + Math.random() * (s.w - 160), s.y + 40 + Math.random() * (s.h - 240), 200);
 });
+
+buddy.on("test:mischief", () => runRegisteredAct("mischief"));
+buddy.on("test:chatter", () => runRegisteredAct("chatter"));

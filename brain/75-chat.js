@@ -49,7 +49,28 @@ globalThis.handleChatMessage = function (text, source) {
   const recent = log.slice(-4).map((x) => who + ": " + x.q + "\nbuddy: " + x.a).join("\n");
   const grudges = buddy.memory.get("grudges") || 0;
   const traits = buddy.traits.all();
-  const tests = buddy.data("tests.json") || [];
+  const tests = chatAbilities();
+  // The body report: what this device can and cannot physically do, plus the
+  // standing wishlist - so buddy answers "can you X" from facts, not vibes.
+  const capNames = {
+    cursor: "grab/move the cursor",
+    windows: "see app windows",
+    layer: "hide behind windows / go translucent ghost",
+    music: "play and stop music",
+    think: "deep thinking (claude)",
+    phonePush: "visit and text the phone",
+    claudeEvents: "sense claude code sessions",
+  };
+  const capsMap = (buddy.caps && buddy.caps()) || null;
+  const capsLine = capsMap
+    ? Object.keys(capNames).filter((k) => k in capsMap)
+        .map((k) => (capsMap[k] === false ? "CANNOT " : "can ") + capNames[k]).join("; ")
+    : "";
+  const wishesRaw = (buddy.text && buddy.text("wishes.md")) || "";
+  const wishLine = wishesRaw.split(/^## granted/m)[0].split("\n")
+    .filter((l) => /^- /.test(l))
+    .map((l) => l.replace(/^-\s*[0-9-]+[^:]*:\s*/, "").trim())
+    .slice(0, 6).join(" | ");
   const prompt =
     (recent ? "recent conversation:\n" + recent + "\n\n" : "") +
     "your personality sliders right now: " + JSON.stringify(traits) +
@@ -59,6 +80,8 @@ globalThis.handleChatMessage = function (text, source) {
     (pendingLove ? 'you are waiting on their answer: should you remember that they love "' + pendingLove + '"?\n' : "") +
     "things you can DO on command (id - what it is): " +
     tests.map((x) => x.id + " - " + x.title).join("; ") + "\n" +
+    (capsLine ? "your body on this device: " + capsLine + ". a missing sense is physical fact, not a mood.\n" : "") +
+    (wishLine ? "things your body cannot do YET (your wishlist; night-you asks, " + who + " builds): " + wishLine + "\n" : "") +
     (phone
       ? who + ' texted you FROM THEIR PHONE: "' + text + '" (they are away from the mac; your reply arrives as a notification)\n\n'
       : who + ' just said to you: "' + text + '"\n\n') +
@@ -70,7 +93,7 @@ globalThis.handleChatMessage = function (text, source) {
     "action=setting when " + who + " wants to adjust how you act RIGHT NOW (be quieter, calmer, more chaotic) - pick the trait and a 0..1 value honoring the request given current values.\n" +
     "action=love when " + who + " clearly declares loving a specific show/game/movie/artist not in their loves on record - your reply should ask whether to remember it.\n" +
     (pendingLove ? "action=loveconfirm if this message answers YES to the pending question. if it answers no, action=chat and let it go gracefully.\n" : "") +
-    "action=chat for everything else, including commands you have no ability for (be sassy about those).";
+    "action=chat for everything else, including commands you have no ability for. for those: if it is on your wishlist or your body lacks the sense, say so plainly (blame the body, not the will); otherwise be sassy and offer to add it to your homework.";
 
   // Conversation outranks whatever ambient act is mid-flight.
   if (typeof interruptAct === "function") interruptAct("chat");
