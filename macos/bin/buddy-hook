@@ -5,8 +5,9 @@
 # Sessions buddy runs itself (think(), the mutator) tag BUDDY_SELF - drop
 # their events or buddy reacts to its own thoughts in a feedback loop.
 [ -n "${BUDDY_SELF:-}" ] && exit 0
-mkdir -p "$HOME/.buddy"
-python3 - "$1" <<'PY'
+BUDDY_HOME="${BUDDY_HOME:-$HOME/.buddy}"
+mkdir -p "$BUDDY_HOME"
+BUDDY_HOME="$BUDDY_HOME" python3 - "$1" <<'PY'
 import json, os, sys, time
 
 try:
@@ -22,7 +23,7 @@ if isinstance(event.get("prompt"), str):
 event["_event"] = sys.argv[1] if len(sys.argv) > 1 else data.get("hook_event_name", "unknown")
 event["_ts"] = time.time()
 
-path = os.path.expanduser("~/.buddy/events.jsonl")
+path = os.path.join(os.environ["BUDDY_HOME"], "events.jsonl")
 with open(path, "a") as f:
     f.write(json.dumps(event) + "\n")
 PY

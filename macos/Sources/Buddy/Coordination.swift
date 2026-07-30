@@ -68,6 +68,12 @@ final class Coordination {
     // MARK: - Listen + discover
 
     private func start(listenPort: UInt16) {
+        // Sandbox instances stay off the LAN: a second "mac" announcing the
+        // same Bonjour name/port would corrupt the live buddy's peer state.
+        if BuddyPaths.isSandbox {
+            buddyLog("coord: sandbox (BUDDY_HOME set), coordination disabled")
+            return
+        }
         guard let l = try? NWListener(using: .tcp, on: NWEndpoint.Port(rawValue: listenPort)!) else {
             buddyLog("coord: cannot listen on \(listenPort)")
             return

@@ -6,10 +6,12 @@ export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin"
 # The mutation session must not feed buddy's own event stream.
 export BUDDY_SELF=1
 
-BRAIN="$HOME/.buddy/brain"
+# BUDDY_HOME sandboxing: evolve a test install instead of the live one.
+export BUDDY_HOME="${BUDDY_HOME:-$HOME/.buddy}"
+BRAIN="$BUDDY_HOME/brain"
 PROMPT="$(dirname "$0")/prompt.md"
-LOG="$HOME/.buddy/mutator.log"
-LOCK="$HOME/.buddy/evolving.lock"
+LOG="$BUDDY_HOME/mutator.log"
+LOCK="$BUDDY_HOME/evolving.lock"
 
 # One evolution at a time; the app watches this lock to run the ritual
 # (and to pause brain hot-reloading) for nightly runs too.
@@ -34,15 +36,15 @@ fi
 
 # Snapshot the test roster: entries added by this mutation show under
 # "What's New" in the menu until the next mutation graduates them.
-cp "$BRAIN/tests.json" "$HOME/.buddy/tests.prev.json" 2>/dev/null || true
+cp "$BRAIN/tests.json" "$BUDDY_HOME/tests.prev.json" 2>/dev/null || true
 
 claude -p "$(cat "$PROMPT")" \
   --permission-mode acceptEdits \
-  --add-dir "$HOME/.buddy" \
+  --add-dir "$BUDDY_HOME" \
   >> "$LOG" 2>&1
 
 # Safety net: the mutator was told to check and commit, but trust nothing.
-if ! "$HOME/.buddy/bin/Buddy" --check >> "$LOG" 2>&1; then
+if ! "$BUDDY_HOME/bin/Buddy" --check >> "$LOG" 2>&1; then
   echo "check failed, reverting" >> "$LOG"
   git checkout -- . >> "$LOG" 2>&1
   git clean -fd >> "$LOG" 2>&1
@@ -55,5 +57,5 @@ if ! git diff --quiet || ! git diff --cached --quiet || [ -n "$(git status --por
   git commit -m "nightly drift (auto)" >> "$LOG" 2>&1
 fi
 # Success marker - the app's staleness check auto-triggers when this gets old.
-date +%s > "$HOME/.buddy/last-evolution"
+date +%s > "$BUDDY_HOME/last-evolution"
 echo "=== done $(date) ===" >> "$LOG"

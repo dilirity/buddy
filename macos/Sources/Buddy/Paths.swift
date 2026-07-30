@@ -1,7 +1,17 @@
 import Foundation
 
 enum BuddyPaths {
-    static let home = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".buddy")
+    // BUDDY_HOME points a whole instance at a sandbox directory so setup and
+    // app work can be tested next to a live install. Sandbox instances skip
+    // LAN coordination (see isSandbox) - a second "mac" on the same Bonjour
+    // name/port would corrupt the live buddy's peer state.
+    static let home: URL = {
+        if let override = ProcessInfo.processInfo.environment["BUDDY_HOME"], !override.isEmpty {
+            return URL(fileURLWithPath: (override as NSString).expandingTildeInPath, isDirectory: true)
+        }
+        return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".buddy")
+    }()
+    static let isSandbox = ProcessInfo.processInfo.environment["BUDDY_HOME"].map { !$0.isEmpty } ?? false
     static let brain = home.appendingPathComponent("brain")
     static let sprites = brain.appendingPathComponent("sprites.json")
     static let persona = brain.appendingPathComponent("persona.md")
