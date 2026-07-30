@@ -34,7 +34,8 @@ Steps, in order:
 1. **Dependency check.** git, swift/Xcode CLT. Missing CLT: offer to run `xcode-select --install`, then exit with "re-run after install completes". No silent installs.
 2. **Build.** `swift build -c release` in macos/. Fail loudly with the actual compiler output.
 3. **Install.** Binary plus bin scripts to ~/.buddy/bin. Seed brain from repo brain/ (no overwrite of existing user brain; same rule the app already uses). `git init` ~/.buddy/brain if new, initial commit.
-4. **Secrets generation.** Per-install random ntfy topic (`buddy-<random>`), per-install pairing secret replacing the hardcoded "buddy-doorknob". Written to ~/.buddy config files, never committed anywhere.
+4. **Secrets generation.** Per-install random ntfy topic (`buddy-<random>`), per-install random pairing secret. Written to ~/.buddy config files, never committed anywhere.
+   **Code change required, both platforms:** the pairing secret is currently a compile-time literal (`"buddy-doorknob"`) in macos Coordination.swift and android Coordination.kt. It must become a runtime read: mac from a ~/.buddy config file, Android from app storage populated during pairing. No secret literal survives in source; a build without a configured secret refuses coordination rather than falling back to a default.
 5. **Launch app.** First-run wizard (WS2/WS3/WS4/WS5) takes over from here. setup.sh does NOT install hooks, does NOT install the launchd service, does NOT touch ~/.claude - all of that requires in-app consent screens.
 
 Pairing secret note: both devices need the same secret. Setup on the phone side reads it from the mac during pairing (or user copies it); exact pairing UX specced in WS6.
@@ -69,6 +70,8 @@ Granularity: two independent switches.
 
 - **Chat/think** (small spend): on/off.
 - **Evolution** (large spend): off / manual only / weekly / nightly. Default: **off**. Schedule maps to launchd plist interval; manual-only keeps the Evolve Now menu item but no service.
+
+Model configuration: separate model picker for chat/think (currently hardcoded `--model haiku` in Think.swift) and for evolution (currently the mutator's default). Stored in config, passed through to the claude invocations, validated by a cheap test call before saving. Defaults: haiku for chat, account default for evolution.
 
 All of it changeable later from the setup panel, not just first run.
 
@@ -132,9 +135,20 @@ Fix:
 
 Rationale: 1-4 make an install possible and safe; a real stranger install is the cheapest way to find the remaining "works on Pete's machine" assumptions; 5-8 are quality and reach.
 
+## Testing strategy (developing this while a live buddy runs)
+
+Pete's machine already runs buddy: live ~/.buddy, evolved brain, installed hooks, loaded launchd service. Fresh-install work cannot be tested against that. Three tiers:
+
+1. **BUDDY_HOME env override** (small code change: Paths.swift, plus the hook script and launchd plist must respect it). A second instance runs against a sandbox directory for cheap iteration on panel/wizard/setup.sh code. Known collisions it does NOT solve: two status bar buddies, launchd label, Bonjour service name, and ~/.claude (hooks, account) is shared. Tests the app, not the install.
+2. **Separate macOS user account.** Fresh home, fresh ~/.claude, fast user switching; the live buddy is untouched. This is the honest end-to-end fresh-install test. Needs its own claude login to exercise WS3 detection paths.
+3. **macOS VM** (UTM/Tart on Apple Silicon). Most faithful, catches OS-level prompts (xcode-select, Accessibility dialogs). Run once before the guinea pig milestone, not every iteration.
+
+BUDDY_HOME lands first as its own small workstream; it stays useful for development forever.
+
 ## Open questions
 
 - Evolution token cost: measure a real nightly run's usage so WS3 consent text can state an honest number instead of "roughly N".
 - Persona interview depth: minimal 3 questions vs richer conversation. Start minimal.
 - Phone pairing UX: manual topic+secret entry acceptable for experimental tier, or QR from day one?
 - What does "uninstall buddy" look like? Probably a setup.sh flag: remove hooks (via WS4 path), unload service, optionally delete ~/.buddy. Should be specced before guinea pig milestone.
+- ntfy.sh is public infrastructure: per-install topic makes it unguessable, but phone chat still transits a public server. Minimum: disclose in setup. Better: configurable ntfy server for self-hosters. Decide before wider rollout.
