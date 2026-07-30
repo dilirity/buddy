@@ -29,6 +29,7 @@
 
 ## Brain sync (mac -> phone, live)
 - Mutator edits only reach the phone at APK rebuild (assets snapshot). Ship brain files over the coordination link instead: on travel or on brain change, owner pushes changed .js/.json to peers; phone hot-reloads like the mac does. Then evolution reaches both bodies the same night.
+- Declared facts too: the phone has userConfig/configSet (local config.json) but nothing fills it - buddy calls the human "boss" on the phone until config values replicate like traits do in the ownership snapshot.
 
 ## Android companion (the expedition)
 - Real buddy-on-phone: Android overlay app ("draw over other apps"), renders the same sprites.json pixel maps, subscribes to the ntfy topic for arrive/return commands and publishes phone-side events (pokes) back. Presence handoff: buddy exists on ONE device at a time - Mac hides it while abroad, phone walks it in. Mini-brain on the phone (idle/wander/poke/lines); personality, evolution, memory stay on the Mac; trip reports on return. Separate repo, Kotlin, days of work - the current ghost-at-the-edge travel act is the placeholder fiction until then.
