@@ -58,12 +58,17 @@ final class SettingsWindow: NSObject {
         return item
     }
 
+    // All panes share one width so switching tabs never resizes the window;
+    // matches the System pane's natural measure (430 detail + insets).
+    static let paneWidth: CGFloat = 470
+
     private func pane() -> NSStackView {
         let stack = NSStackView()
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 10
         stack.edgeInsets = NSEdgeInsets(top: 20, left: 20, bottom: 20, right: 20)
+        stack.widthAnchor.constraint(equalToConstant: Self.paneWidth).isActive = true
         return stack
     }
 
@@ -112,10 +117,14 @@ final class SettingsWindow: NSObject {
         return l
     }
 
+    // Wrapped at the pane's measure - an unwrapped note would stretch the
+    // whole window to its full one-line width.
     private func note(_ text: String) -> NSTextField {
-        let l = NSTextField(labelWithString: text)
+        let l = NSTextField(wrappingLabelWithString: text)
         l.font = NSFont.systemFont(ofSize: 10)
         l.textColor = .secondaryLabelColor
+        l.preferredMaxLayoutWidth = Self.paneWidth - 40
+        l.widthAnchor.constraint(lessThanOrEqualToConstant: Self.paneWidth - 40).isActive = true
         return l
     }
 
