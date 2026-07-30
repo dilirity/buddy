@@ -12,32 +12,39 @@ buddy.on("active", () => {
   if (chance(0.4)) sayLine("wake", 3);
 });
 
-// Clingy: staged visit - walk over, deliver a heart, settle down.
+// Clingy: visit the cursor, celebrate the cuddle or sulk the miss. New-style
+// act: run(act) with a real outcome, and an in-fiction interrupt reaction.
 registerAct("clingy", {
   minGap: 120000,
   caps: ["cursor"],
   weight: () => buddy.traits.get("clinginess") * 0.8,
-  run: () => {
+  run: (act) => {
     const c = buddy.cursor.pos();
     const s = buddy.screen();
     const side = c.x > s.x + s.w - 160 ? -70 : c.x < s.x + 160 ? 70 : chance(0.5) ? 70 : -70;
-    const roll = Math.random();
-    const arrive =
-      roll < 0.4 ? { anim: "excited", prop: "heart", ms: 2600 }
-      : roll < 0.7 ? { anim: "excited", line: "clingyArrive", secs: 3, ms: 2600 }
-      : { anim: "excited", line: "clingyArrive", secs: 3, prop: "heart", ms: 2600 };
-    runAct([
-      { anim: "walk", approach: { speed: 160, dx: side, dy: 0 }, until: "arrived" },
-    ], () => {
-      // "arrived" also fires when the visit timed out - only celebrate the
-      // cuddle if buddy actually made it next to the cursor.
+    buddy.play("walk");
+    buddy.approach(160, side, 0);
+    act.once("arrived", () => {
+      // "arrived" also fires when the walk deadline lapsed - only celebrate
+      // the cuddle if buddy actually made it next to the cursor.
       const p = buddy.pos();
       const m = buddy.cursor.pos();
-      const close = Math.hypot(p.x - m.x, p.y - m.y) < 180;
-      runAct(close
-        ? [arrive, { anim: "idle" }]
-        : [{ anim: "idle", line: "clingyMiss", secs: 3, ms: 2600 }, { anim: "idle" }]);
+      if (Math.hypot(p.x - m.x, p.y - m.y) < 180) {
+        buddy.play("excited");
+        sayLine("clingyArrive", 3, chance(0.6) ? "heart" : null);
+        act.after(2600, () => { buddy.play("idle"); act.done("cuddled"); });
+      } else {
+        buddy.play("idle");
+        sayLine("clingyMiss", 3);
+        act.after(2600, () => act.done("missed"));
+      }
     });
+    // The shell resolves approach within 10s; this is the belt to its braces.
+    act.after(15000, () => { buddy.play("idle"); act.done("timeout"); });
+  },
+  onInterrupt: (act, reason) => {
+    // Scooped up mid-visit: close enough to a cuddle, honestly.
+    if (reason === "drag") sayLine("clingyArrive", 3, "heart");
   },
 });
 

@@ -84,7 +84,7 @@ buddy.on("caught", () => {
 
 buddy.on("test:clingy", () => {
   if (!can("cursor")) { buddy.say("no cursor to visit here. YOU come here", 4); return; }
-  _acts.clingy.run();
+  runRegisteredAct("clingy");
 });
 
 buddy.on("test:grudge", () => {

@@ -72,6 +72,8 @@ globalThis.handleChatMessage = function (text, source) {
     (pendingLove ? "action=loveconfirm if this message answers YES to the pending question. if it answers no, action=chat and let it go gracefully.\n" : "") +
     "action=chat for everything else, including commands you have no ability for (be sassy about those).";
 
+  // Conversation outranks whatever ambient act is mid-flight.
+  if (typeof interruptAct === "function") interruptAct("chat");
   state.busy = true;
   buddy.stop();
   buddy.play("scheming");

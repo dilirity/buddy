@@ -1,10 +1,3 @@
-
-// What buddy calls its human. Declared in config (onboarding/settings);
-// memory fallback covers installs that predate the config store. "boss"
-// until told otherwise.
-function userName() {
-  return cfg("name", "") || buddy.memory.get("userName") || "boss";
-}
 // Buddy brain core. Files load in filename order; this one first.
 // Coordinates are Cocoa: origin at bottom-left. buddy.screen() = visible frame {x,y,w,h}.
 globalThis.state = { mood: "happy", busy: false };
@@ -55,6 +48,13 @@ globalThis.cfg = (name, fallback) => {
   return e && e.default !== undefined && e.default !== null ? e.default : fallback;
 };
 
+// What buddy calls its human. Declared in config (onboarding/settings);
+// memory fallback covers installs that predate the config store. "boss"
+// until told otherwise.
+globalThis.userName = function () {
+  return cfg("name", "") || buddy.memory.get("userName") || "boss";
+};
+
 // Dialogue pools live in lines.json so the nightly mutator can add lines
 // without touching code.
 globalThis.lines = (key) => {
@@ -71,19 +71,91 @@ globalThis.sayLine = (key, secs, prop) => {
   if (t) buddy.say(t, secs || 4, prop || null);
 };
 
-// Stage sequencer: every multi-step act should run through this instead of
-// hand-rolled timer chains. Steps run in order; each step may have:
+// ---- Act lifecycle ----
+// Any behavior that takes the stage runs inside an act context. The context
+// owns the shared-state boundary - the busy claim, cleanup, one exit, and
+// interrupt delivery - and says nothing about the body: write any imperative
+// code, from a three-line skit to a long interactive game.
+//   act.after(ms, fn) / act.every(ms, fn)  timers that die with the act
+//   act.on(ev, fn) / act.once(ev, fn)      listeners inert after the act ends
+//   act.done(outcome)                      the one exit; outcome is free-form
+//                                          ("cuddled", "missed", "timeout"...)
+//   onInterrupt(act, reason) in the spec   called when something bigger takes
+//                                          the stage (reason: drag|evolve|chat)
+//                                          BEFORE the context closes - react
+//                                          in-fiction (sulk), save arc state.
+globalThis._activeAct = null;
+
+globalThis.beginAct = function (name, spec) {
+  const ctx = {
+    name: name,
+    live: true,
+    _timers: [],
+    _spec: spec || {},
+    after(ms, fn) {
+      const id = buddy.after(ms, () => { if (ctx.live) fn(); });
+      ctx._timers.push(id);
+      return id;
+    },
+    every(ms, fn) {
+      const id = buddy.every(ms, () => { if (ctx.live) fn(); });
+      ctx._timers.push(id);
+      return id;
+    },
+    // The shell has no off(); guards keep dead acts' handlers inert, and the
+    // nightly reload sweeps them. Prefer once() for completion events.
+    on(ev, fn) { buddy.on(ev, (e) => { if (ctx.live) fn(e); }); },
+    once(ev, fn) { buddy.once(ev, (e) => { if (ctx.live) fn(e); }); },
+    done(outcome) { endAct(ctx, outcome || "done"); },
+  };
+  _activeAct = ctx;
+  state.busy = true;
+  return ctx;
+};
+
+function endAct(ctx, outcome) {
+  if (!ctx.live) return;
+  ctx.live = false;
+  ctx._timers.forEach((id) => buddy.cancel(id));
+  if (_activeAct === ctx) _activeAct = null;
+  // An act finishing must not release the busy claim the evolve ritual holds.
+  state.busy = state.evolving === true;
+  buddy.log("act " + ctx.name + ": " + outcome);
+}
+
+// Something bigger took the stage. The act hears about it (onInterrupt) and
+// then its context closes - timers die, so no blind half-act keeps ticking.
+globalThis.interruptAct = function (reason) {
+  const ctx = _activeAct;
+  if (!ctx || !ctx.live) return;
+  const oi = ctx._spec.onInterrupt;
+  if (oi) {
+    try { oi(ctx, reason); } catch (e) { buddy.log("onInterrupt error: " + e); }
+  }
+  endAct(ctx, "interrupted:" + reason);
+};
+
+buddy.on("dragStart", () => interruptAct("drag"));
+buddy.on("evolveStart", () => interruptAct("evolve"));
+
+// Stage sequencer, built ON the act context: the convenient shape for staged
+// skits. Steps run in order; each step may have:
 //   anim: "name"                      play an animation
 //   line: "poolKey" / say: "text"     speak (secs, prop ride along)
 //   prop: "name"                      worn via the spoken line, or bare
-//   moveTo: {x, y, speed}             walk somewhere (fixed point)
+//   moveTo: {x, y, speed}             walk somewhere
 //   approach: {speed, dx, dy}         walk to the LIVE cursor + offset
 //   chase: speed                      pursue and catch the live cursor
+//   layer: "behind" | "front"         drop under / restore over app windows
+//   opacity: 0.15..1                  ghost mode (shell auto-restores to 1)
 //   ms: 800                           how long the step lasts (default 800)
 //   until: "event" | ["e1","e2"]      instead of ms, wait for an event
 //   until: {event: [steps...]}        branch: run that path, then finish
-// state.busy is held for the whole act so ambient behaviors yield.
+// Runs inside the current act context when one is live (an act body calling
+// runAct), else opens its own - busy is held either way, and an interrupt
+// kills the chain instead of letting it tick blind.
 globalThis.runAct = function (steps, done) {
+  const ctx = _activeAct && _activeAct.live ? _activeAct : beginAct("seq");
   let i = -1;
   let bareProp = false;
   function clearBareProp() {
@@ -94,15 +166,17 @@ globalThis.runAct = function (steps, done) {
   }
   function finish() {
     clearBareProp();
-    // An act finishing must not release the busy claim the evolve ritual holds.
-    state.busy = state.evolving === true;
+    ctx.done();
     if (done) done();
   }
   function next() {
+    if (!ctx.live) return clearBareProp();
     clearBareProp();
     i++;
     if (i >= steps.length) return finish();
     const s = steps[i];
+    if (s.layer) buddy.layer(s.layer);
+    if (s.opacity != null) buddy.opacity(s.opacity);
     if (s.anim) buddy.play(s.anim);
     if (s.line) sayLine(s.line, s.secs, s.prop);
     else if (s.say) buddy.say(s.say, s.secs || 4, s.prop || null);
@@ -125,23 +199,22 @@ globalThis.runAct = function (steps, done) {
       let fired = false;
       const branch = !Array.isArray(s.until) && typeof s.until === "object";
       const events = branch ? Object.keys(s.until) : [].concat(s.until);
-      events.forEach((ev) => buddy.once(ev, () => {
+      events.forEach((ev) => ctx.once(ev, () => {
         if (fired) return;
         fired = true;
         if (branch) runAct(s.until[ev], done);
         else next();
       }));
-      // Stuck-safety: events can get swallowed (drag, freeze, reload).
-      buddy.after(s.timeout || 12000, () => {
+      // Stuck-safety: events can get swallowed (freeze, reload).
+      ctx.after(s.timeout || 12000, () => {
         if (fired) return;
         fired = true;
         finish();
       });
     } else {
-      buddy.after(s.ms || 800, next);
+      ctx.after(s.ms || 800, next);
     }
   }
-  state.busy = true;
   next();
 };
 
@@ -162,6 +235,25 @@ buddy.on("unfrozen", () => {
 globalThis._acts = {};
 globalThis.registerAct = function (name, spec) {
   _acts[name] = Object.assign({ lastRun: 0 }, spec);
+};
+
+// The one way an act actually starts (scheduler and test menu both come
+// through here). New-style bodies declare run(act) and get a live context;
+// legacy zero-arg bodies manage busy themselves (usually via runAct).
+globalThis.runRegisteredAct = function (name) {
+  const a = _acts[name];
+  if (!a) return;
+  if (a.run.length >= 1) {
+    const ctx = beginAct(name, a);
+    try {
+      a.run(ctx);
+    } catch (e) {
+      buddy.log("act " + name + " error: " + e);
+      ctx.done("error");
+    }
+  } else {
+    a.run();
+  }
 };
 
 buddy.every(15000, () => {
@@ -188,8 +280,7 @@ buddy.every(15000, () => {
     if (r <= 0) {
       _acts[name].lastRun = now;
       buddy.memory.set("lastAct", name);
-      buddy.log("act: " + name);
-      _acts[name].run();
+      runRegisteredAct(name);
       return;
     }
   }
