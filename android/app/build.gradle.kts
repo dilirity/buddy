@@ -21,6 +21,36 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+    sourceSets {
+        getByName("main") {
+            assets.srcDir(layout.buildDirectory.dir("generated/brainAssets"))
+        }
+    }
+}
+
+// The brain is never checked in here: the APK gets a snapshot of the live
+// evolved brain (~/.buddy/brain) when it exists, else the repo seed (brain/).
+val brainSource: File = run {
+    val buddyHome = System.getenv("BUDDY_HOME") ?: "${System.getProperty("user.home")}/.buddy"
+    val live = File("$buddyHome/brain")
+    if (live.isDirectory) live else rootProject.projectDir.resolve("../brain")
+}
+
+val syncBrainAssets = tasks.register<Copy>("syncBrainAssets") {
+    from(brainSource) {
+        exclude(".git/**")
+        into("brain")
+    }
+    // SpriteSheet reads sprites.json from the assets root.
+    from(File(brainSource, "sprites.json"))
+    into(layout.buildDirectory.dir("generated/brainAssets"))
+    doFirst {
+        logger.lifecycle("brain assets from: $brainSource")
+    }
+}
+
+tasks.named("preBuild") {
+    dependsOn(syncBrainAssets)
 }
 
 dependencies {
