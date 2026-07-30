@@ -48,7 +48,7 @@ One window, reachable from the status bar menu at any time (not just first run).
 | Row | Detection | Fix action | Without it |
 |---|---|---|---|
 | Accessibility | `AXIsProcessTrusted()` via fresh helper process (in-process answers are launch-time-stale) | `AXIsProcessTrustedWithOptions(prompt)` registers the binary + deep-link to the pane | No typing sense, no double-Esc panic |
-| Automation (Music/Spotify) | best effort; informational | Explain the one-time prompt | DJ acts silently fail |
+| Automation (Music/Spotify) | no row - the brain's early music.status poke makes macOS prompt organically right after first launch | n/a | DJ acts silently fail if denied |
 | Claude Code | `which claude` + `claude --version` | Link to install docs | Small brain mode: no think, no chat, no evolution |
 | Hooks | Parse ~/.claude/settings.json for buddy marker | Opens WS4 consent flow | No reactions to Claude sessions |
 | Evolution service | launchd job loaded? next run time | Toggle: load/unload the agent | Buddy never changes |

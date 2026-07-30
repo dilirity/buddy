@@ -8,9 +8,6 @@ import ApplicationServices
 final class SetupWindow: NSObject {
     // Wired by the controller; the peer list lives with coordination.
     var peersProvider: (() -> [String])?
-    // Wired by the controller; pokes the music player to fire the Automation prompt.
-    var musicRequest: (() -> Void)?
-
 
     private var window: NSWindow?
     private var refreshTimer: Timer?
@@ -99,16 +96,6 @@ final class SetupWindow: NSObject {
                     NSWorkspace.shared.open(URL(string:
                         "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
                 }
-            }
-        })
-
-        add(to: stack, Row(title: "Music control", tag: "optional") { [weak self] row in
-            // No reliable read of the Automation grant without prompting;
-            // explain the prompt instead of pretending to know.
-            row.set(nil, "buddy can control Music/Spotify - macOS will ask you to approve that the first"
-                    + " time. Request it now instead of meeting the prompt mid-song next week.",
-                    button: "Request access") {
-                self?.musicRequest?()
             }
         })
 

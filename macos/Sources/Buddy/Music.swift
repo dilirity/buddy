@@ -41,22 +41,6 @@ final class MusicBridge {
         }
     }
 
-    // Deliberately trigger the one-time Automation prompt (setup front-loads
-    // every permission prompt instead of letting one surface mid-behavior
-    // weeks later). Pokes the running player with a harmless query; launches
-    // Music if none is running and quits it again afterwards.
-    func requestAccess() {
-        queue.async { [weak self] in
-            guard let self else { return }
-            let already = self.runningPlayer()
-            let player = already ?? "Music"
-            _ = self.osa("tell application \"\(player)\" to player state as string")
-            if already == nil {
-                _ = self.osa("tell application \"Music\" to quit")
-            }
-        }
-    }
-
     func play(playlist: String?) {
         queue.async { [weak self] in
             guard let self else { return }
