@@ -21,21 +21,21 @@ A pixel goblin that lives on your screen, watches your Claude Code sessions, tal
 
 On first launch buddy introduces itself and asks a few questions (your name, pronouns, what you love, how much of a menace to be). Skippable; everything is editable later.
 
-**Then open the menu bar goblin `ᴥ` > Setup.** Everything that spends money or touches your config is OFF until you consent there:
+**Then open the menu bar goblin `ᴥ` > Settings > System** (buddy takes you there after the interview). Everything that spends money or touches your config is OFF until you consent there:
 
 - **Accessibility permission** - typing awareness, cursor mischief, the double-Esc panic gesture. Buddy degrades gracefully without it.
 - **Claude Code hooks** - lets buddy react to your coding sessions. Shows a diff, backs up `~/.claude/settings.json`, reversible.
 - **Chat** - talk to buddy (double-click it). Uses your Claude subscription; pick the model.
 - **Nightly evolution** - the self-mutation service (off / manual / weekly / nightly). Until enabled, "Evolve Now" in the menu still works for one-off mutations.
 
-`setup.sh` itself never touches `~/.claude` and never installs the evolution service - the Setup panel owns both, with consent.
+`setup.sh` itself never touches `~/.claude` and never installs the evolution service - the Settings > System tab owns both, with consent.
 
 ## Controls
 
 - **Drag** buddy anywhere. **Click** to poke. **Double-click** to talk.
 - **Double-tap Esc**: panic - buddy freezes for `panicFreezeMinutes`.
-- Menu bar `ᴥ`: freeze/wake, reload brain, open brain folder, Evolve Now, Settings, Setup, quit. Tests added by the latest mutation appear under "What's New ✨" until the next one graduates them.
-- **Settings** (menu > Settings): personality sliders, hard limits, and "Your World" - facts buddy's behaviors rely on (your name, what you love, your hours). Evolutions add new entries; they show up there on their own.
+- Menu bar `ᴥ`: Talk, Freeze/Wake, What's New ✨, Do a Trick, Evolve Now, Settings, Advanced (reload brain, chaos test mode, brain folder, devices), Quit. Tricks added by the latest mutation appear under "What's New ✨" until the next one graduates them.
+- **Settings** (menu > Settings, three tabs): Personality (trait sliders + hard limits), Your World (facts buddy's behaviors rely on - your name, what you love; evolutions add new entries and they show up on their own), System (permissions, hooks, chat, evolution, pairing).
 - `~/.buddy/traits.json`: the personality sliders on disk (mischief, chattiness, energy, clinginess, weirdness) with min/max bounds the mutator cannot escape. Edit values while buddy is awake - it will notice, and it will comment.
 - `~/.buddy/invariants.json`: hard limits (max disruptive acts per hour, freeze length). The mutator has no write path here.
 - `~/.buddy/config.json`: your declared facts (written by Settings and onboarding). Outside the brain repo on purpose - evolution failures can never touch it.

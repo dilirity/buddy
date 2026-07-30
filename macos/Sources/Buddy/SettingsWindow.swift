@@ -1,30 +1,74 @@
 import AppKit
 
-// Native settings UI. Writes straight to traits.json / invariants.json, so the
-// senses' file watchers (and buddy's opinions about being tweaked) fire as usual.
+// Native settings UI, one window with three tabs:
+//   Personality - trait sliders + the limits (the leash sits next to what it
+//                 leashes); writes traits.json / invariants.json so the
+//                 senses' file watchers (and buddy's opinions about being
+//                 tweaked) fire as usual.
+//   Your World  - declared facts (config-schema.json -> ~/.buddy/config.json).
+//   System      - the SetupWindow pane: permissions, Claude, spend, pairing.
 final class SettingsWindow: NSObject {
+    // Injected by the controller (its providers are wired there).
+    var systemPane: SetupWindow?
+
+    enum Tab: Int { case personality = 0, world = 1, system = 2 }
+
     private var window: NSWindow?
+    private var tabView: NSTabView?
     private var valueLabels: [String: NSTextField] = [:]
     private var formats: [String: String] = [:]
 
-    func show() {
+    func show(tab: Tab = .personality) {
         window?.close()
         valueLabels.removeAll()
         formats.removeAll()
         build()
+        if let tabView, tab.rawValue < tabView.numberOfTabViewItems {
+            tabView.selectTabViewItem(at: tab.rawValue)
+        }
         NSApp.activate(ignoringOtherApps: true)
         window?.center()
         window?.makeKeyAndOrderFront(nil)
     }
 
     private func build() {
+        let tabs = NSTabView()
+        tabs.addTabViewItem(tabItem("Personality", personalityPane()))
+        tabs.addTabViewItem(tabItem("Your World", worldPane()))
+        if let pane = systemPane {
+            let view = pane.makePaneView(visible: { [weak self] in self?.window?.isVisible == true })
+            tabs.addTabViewItem(tabItem("System", view))
+        }
+
+        let win = NSWindow(contentRect: .zero,
+                           styleMask: [.titled, .closable],
+                           backing: .buffered, defer: false)
+        win.title = "Buddy Settings"
+        win.isReleasedWhenClosed = false
+        win.contentView = tabs
+        win.setContentSize(tabs.fittingSize)
+        tabView = tabs
+        window = win
+    }
+
+    private func tabItem(_ label: String, _ view: NSView) -> NSTabViewItem {
+        let item = NSTabViewItem(identifier: label)
+        item.label = label
+        item.view = view
+        return item
+    }
+
+    private func pane() -> NSStackView {
         let stack = NSStackView()
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 10
         stack.edgeInsets = NSEdgeInsets(top: 20, left: 20, bottom: 20, right: 20)
+        return stack
+    }
 
-        stack.addArrangedSubview(header("Personality"))
+    private func personalityPane() -> NSStackView {
+        let stack = pane()
         let traits = Traits.load()
         let preferred = ["mischief", "chattiness", "energy", "clinginess", "weirdness"]
         let names = preferred.filter { traits[$0] != nil }
@@ -37,15 +81,6 @@ final class SettingsWindow: NSObject {
         }
         stack.addArrangedSubview(note("Sliders move within each trait's min/max drift bounds (traits.json)."))
 
-        let config = loadConfig()
-        if !config.isEmpty {
-            stack.addArrangedSubview(header("Your World"))
-            for (key, entry) in config {
-                stack.addArrangedSubview(configRow(key: key, entry: entry))
-            }
-            stack.addArrangedSubview(note("Facts buddy's behaviors rely on. Your values live in ~/.buddy/config.json; evolutions add new ones and they show up here on their own."))
-        }
-
         stack.addArrangedSubview(header("Limits"))
         let inv = Invariants.load()
         stack.addArrangedSubview(sliderRow(
@@ -55,15 +90,20 @@ final class SettingsWindow: NSObject {
             id: "inv:panicFreezeMinutes", label: "panic freeze min",
             min: 1, max: 60, value: Double(inv.panicFreezeMinutes), format: "%.0f"))
         stack.addArrangedSubview(note("The leash. The nightly mutator cannot touch these."))
+        return stack
+    }
 
-        let win = NSWindow(contentRect: .zero,
-                           styleMask: [.titled, .closable],
-                           backing: .buffered, defer: false)
-        win.title = "Buddy Settings"
-        win.isReleasedWhenClosed = false
-        win.contentView = stack
-        win.setContentSize(stack.fittingSize)
-        window = win
+    private func worldPane() -> NSStackView {
+        let stack = pane()
+        let config = loadConfig()
+        if config.isEmpty {
+            stack.addArrangedSubview(note("No facts declared yet - evolutions add entries here as behaviors need them."))
+        }
+        for (key, entry) in config {
+            stack.addArrangedSubview(configRow(key: key, entry: entry))
+        }
+        stack.addArrangedSubview(note("Facts buddy's behaviors rely on. Your values live in ~/.buddy/config.json; evolutions add new ones and they show up here on their own."))
+        return stack
     }
 
     private func header(_ text: String) -> NSTextField {

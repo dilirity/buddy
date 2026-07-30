@@ -2,7 +2,7 @@
 # Buddy guided setup: dependency check, local build, install into ~/.buddy,
 # per-install secrets, launch. Touches nothing outside ~/.buddy,
 # ~/Applications/Buddy.app and its own autostart entry. Claude hooks and the
-# nightly evolution service are consented to inside the app's Setup panel -
+# nightly evolution service are consented to inside the app (Settings > System) -
 # never installed from here.
 # Idempotent: safe to re-run after a partial failure or to update.
 set -euo pipefail
@@ -33,7 +33,7 @@ if command -v claude >/dev/null 2>&1; then
 else
   echo "note: Claude Code not found. Buddy still works, in small-brain mode"
   echo "(canned lines, no chat, no evolution). Install it any time; the app's"
-  echo "Setup panel picks it up."
+  echo "System tab picks it up."
 fi
 
 echo "== building (takes a minute the first time) =="
@@ -58,7 +58,7 @@ for f in brain/*; do
 done
 
 # Mutator files at a stable path so launchd and the Evolve Now menu find
-# them. The nightly SERVICE is not installed here - the app's Setup panel
+# them. The nightly SERVICE is not installed here - the app's System tab
 # does that, with consent, because it spends the user's Claude usage.
 mkdir -p "$BUDDY_HOME/mutator"
 cp mutator/run.sh mutator/prompt*.md "$BUDDY_HOME/mutator/"
@@ -94,7 +94,7 @@ if [ -f "$BUDDY_HOME/coordination-mac.json" ] && [ ! -f "$BUDDY_HOME/peer-seen" 
 fi
 
 # Spend config. Fresh installs spend nothing until consented in the app's
-# Setup panel; an install that predates spend.json was built when chat and
+# System tab; an install that predates spend.json was built when chat and
 # nightly evolution were always-on, so keep that behavior for it. The
 # launchctl probe is user-global, so only the real install may trust it -
 # a sandbox (BUDDY_HOME override) is always fresh.
@@ -189,4 +189,4 @@ else
   echo "done. Buddy is launching - look for the goblin."
 fi
 echo "everything else (permissions, Claude hooks, evolution) happens in the"
-echo "app: menu bar goblin > Setup."
+echo "app: menu bar goblin > Settings > System."

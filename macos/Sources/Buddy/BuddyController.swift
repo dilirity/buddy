@@ -104,8 +104,15 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         setup.peersProvider = { [weak self] in self?.coordination.knownPeers ?? [] }
         setup.keyAccessProvider = { [weak self] in self?.keyAccessGranted ?? AXIsProcessTrusted() }
         setup.onSpendChanged = { [weak self] in self?.brain.spendConfigChanged() }
-        onboarding.onSaved = { [weak self] in self?.brain.reload() }
-        setup.onEditPersona = { [weak self] in self?.onboarding.show() }
+        settings.systemPane = setup
+        setup.onOpenYourWorld = { [weak self] in self?.settings.show(tab: .world) }
+        // Interview done -> hand off to the switches: permissions, chat,
+        // evolution all live on the System tab and default to off.
+        onboarding.onSaved = { [weak self] in
+            self?.brain.reload()
+            self?.say("that's the who. now the switches: what am i allowed to do?", seconds: 6)
+            self?.settings.show(tab: .system)
+        }
         coordination.onDepart = { [weak self] in
             guard let self else { return }
             self.stopMoving()
@@ -843,8 +850,8 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         guard let old, old != stamp, !AXIsProcessTrusted() else { return }
         commonTimer(5, repeats: false) { [weak self] _ in
             guard let self else { return }
-            self.say("new body! macOS wiped my permissions though. Setup has the fix", seconds: 8)
-            self.setup.show()
+            self.say("new body! macOS wiped my permissions though. Settings > System has the fix", seconds: 8)
+            self.settings.show(tab: .system)
         }
     }
 
@@ -853,20 +860,15 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
     private func setupStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.title = "ᴥ"
+        // Daily life first, one configuration entry point, dev tools folded
+        // under Advanced - the menu is a stranger's first impression of buddy.
         let menu = NSMenu()
+        menu.addItem(NSMenuItem(title: "Talk to Buddy…", action: #selector(menuTalk), keyEquivalent: "t"))
         menu.addItem(NSMenuItem(title: "Freeze / Wake", action: #selector(menuTogglePanic), keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: "Reload Brain", action: #selector(menuReload), keyEquivalent: ""))
-        menu.addItem(.separator())
-        let test = NSMenuItem(title: "Chaos Test Mode (1h, no limits)", action: #selector(menuToggleTestMode), keyEquivalent: "")
-        testModeItem = test
-        menu.addItem(test)
-        let devices = NSMenuItem(title: "Devices", action: nil, keyEquivalent: "")
-        devicesItem = devices
-        menu.addItem(devices)
         let fresh = NSMenuItem(title: "What's New ✨", action: nil, keyEquivalent: "")
         whatsNewItem = fresh
         menu.addItem(fresh)
-        let tests = NSMenuItem(title: "Test Interactions", action: nil, keyEquivalent: "")
+        let tests = NSMenuItem(title: "Do a Trick", action: nil, keyEquivalent: "")
         testMenuItem = tests
         menu.addItem(tests)
         let evolve = NSMenuItem(title: "Evolve Now", action: #selector(menuEvolveNow), keyEquivalent: "")
@@ -874,10 +876,23 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         menu.addItem(evolve)
         rebuildTestMenu()
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Talk to Buddy…", action: #selector(menuTalk), keyEquivalent: "t"))
         menu.addItem(NSMenuItem(title: "Settings…", action: #selector(menuSettings), keyEquivalent: ","))
-        menu.addItem(NSMenuItem(title: "Setup…", action: #selector(menuSetup), keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: "Open Brain Folder", action: #selector(menuOpenBrain), keyEquivalent: ""))
+        menu.addItem(.separator())
+
+        let advanced = NSMenuItem(title: "Advanced", action: nil, keyEquivalent: "")
+        let advancedMenu = NSMenu()
+        advancedMenu.addItem(NSMenuItem(title: "Reload Brain", action: #selector(menuReload), keyEquivalent: ""))
+        let test = NSMenuItem(title: "Chaos Test Mode (1h, no limits)", action: #selector(menuToggleTestMode), keyEquivalent: "")
+        testModeItem = test
+        advancedMenu.addItem(test)
+        advancedMenu.addItem(NSMenuItem(title: "Open Brain Folder", action: #selector(menuOpenBrain), keyEquivalent: ""))
+        let devices = NSMenuItem(title: "Devices", action: nil, keyEquivalent: "")
+        devicesItem = devices
+        advancedMenu.addItem(devices)
+        for item in advancedMenu.items { item.target = self }
+        advanced.submenu = advancedMenu
+        menu.addItem(advanced)
+
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit Buddy", action: #selector(menuQuit), keyEquivalent: "q"))
         for item in menu.items { item.target = self }
@@ -1061,7 +1076,6 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
     @objc private func menuReload() { reloadBrainAndSprites() }
     @objc private func menuOpenBrain() { NSWorkspace.shared.open(BuddyPaths.brain) }
     @objc private func menuSettings() { settings.show() }
-    @objc private func menuSetup() { setup.show() }
     @objc private func menuTalk() { spriteTalkRequested() }
     @objc private func menuQuit() { NSApp.terminate(nil) }
 

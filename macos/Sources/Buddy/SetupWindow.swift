@@ -1,18 +1,17 @@
 import AppKit
 import ApplicationServices
 
-// Setup / health panel: everything buddy relies on - permissions, Claude,
-// hooks, the evolution service, device pairing - as live-status rows with a
-// fix path. Reachable from the status menu any time, not just first run, so
-// a revoked permission or a vanished claude install shows up here.
+// System pane: everything buddy relies on - permissions, Claude, hooks, the
+// evolution service, device pairing - as live-status rows with a fix path.
+// Hosted as the System tab of the Settings window, so a revoked permission or
+// a vanished claude install shows up next to everything else tunable.
 final class SetupWindow: NSObject {
     // Wired by the controller; the peer list lives with coordination.
     var peersProvider: (() -> [String])?
 
-    private var window: NSWindow?
     private var refreshTimer: Timer?
     private var rows: [Row] = []
-    // claude lookup shells out; cached per window-open so refresh stays cheap.
+    // claude lookup shells out; cached per pane-build so refresh stays cheap.
     private var claudeVersion: String?
     private var claudeChecked = false
     // Live Privacy-list state lives with the controller (event-driven via
@@ -20,8 +19,8 @@ final class SetupWindow: NSObject {
     var keyAccessProvider: (() -> Bool)?
     // Fired after spend.json changes so warm think sessions restart or shut down.
     var onSpendChanged: (() -> Void)?
-    // Opens the persona interview (first-run window, reusable as editor).
-    var onEditPersona: (() -> Void)?
+    // Switches the hosting window to the Your World tab (facts live there).
+    var onOpenYourWorld: (() -> Void)?
 
     private final class Row {
         let dot = NSTextField(labelWithString: "●")
@@ -75,23 +74,22 @@ final class SetupWindow: NSObject {
         }
     }
 
-    func show() {
-        window?.close()
+    // Builds the pane and starts the 2s live-status refresh; `visible` gates
+    // the timer so it dies with the hosting window.
+    func makePaneView(visible: @escaping () -> Bool) -> NSView {
         rows.removeAll()
         claudeChecked = false
-        build()
-        NSApp.activate(ignoringOtherApps: true)
-        window?.center()
-        window?.makeKeyAndOrderFront(nil)
+        let stack = build()
         refreshAll()
         refreshTimer?.invalidate()
         refreshTimer = commonTimer(2.0, repeats: true) { [weak self] _ in
-            guard let self, self.window?.isVisible == true else {
+            guard let self, visible() else {
                 self?.refreshTimer?.invalidate()
                 return
             }
             self.refreshAll()
         }
+        return stack
     }
 
     private func refreshAll() {
@@ -100,7 +98,7 @@ final class SetupWindow: NSObject {
 
     // MARK: - Rows
 
-    private func build() {
+    private func build() -> NSStackView {
         let stack = NSStackView()
         stack.orientation = .vertical
         stack.alignment = .leading
@@ -223,11 +221,12 @@ final class SetupWindow: NSObject {
             }
         })
 
-        add(to: stack, Row(title: "Persona", tag: "optional") { [weak self] row in
+        add(to: stack, Row(title: "About you", tag: "info") { [weak self] row in
             let name = OnboardingWindow.userNameForDisplay()
-            row.set(nil, name == nil ? "buddy doesn't know your name yet"
-                                     : "buddy calls you \(name!)",
-                    button: "Edit...") { self?.onEditPersona?() }
+            row.set(nil, (name == nil ? "buddy doesn't know your name yet"
+                                      : "buddy calls you \(name!)")
+                        + " - name, pronouns and loves live in Your World",
+                    button: "Open") { self?.onOpenYourWorld?() }
         })
 
         add(to: stack, Row(title: "Device pairing", tag: "optional") { [weak self] row in
@@ -244,14 +243,7 @@ final class SetupWindow: NSObject {
             }
         })
 
-        let win = NSWindow(contentRect: .zero,
-                           styleMask: [.titled, .closable],
-                           backing: .buffered, defer: false)
-        win.title = "Buddy Setup"
-        win.isReleasedWhenClosed = false
-        win.contentView = stack
-        win.setContentSize(stack.fittingSize)
-        window = win
+        return stack
     }
 
     private func add(to stack: NSStackView, _ row: Row) {
