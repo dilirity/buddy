@@ -38,6 +38,14 @@ final class Senses {
         }
 
         // Needs Input Monitoring/Accessibility permission; silently inert without it.
+        armKeyMonitor()
+    }
+
+    // A monitor created while the permission is missing stays dead even after
+    // a grant - re-arm whenever the Accessibility state flips to granted, so
+    // double-Esc panic and typing sense start working without a relaunch.
+    func armKeyMonitor() {
+        if let m = keyMonitor { NSEvent.removeMonitor(m) }
         keyMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.keyDown]) { [weak self] e in
             self?.handleKey(e)
         }

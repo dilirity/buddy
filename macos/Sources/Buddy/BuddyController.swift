@@ -806,6 +806,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
                 self.axTrustedLive = ok
                 buddyLog("accessibility changed live: \(ok)")
                 buddyActivity("axChanged", ["granted": ok])
+                if ok { self.senses.armKeyMonitor() }
                 self.say(ok ? "my powers are back!"
                             : "hey, you took my cursor powers. rude. fine, hands off",
                          seconds: 6)
