@@ -112,11 +112,6 @@ final class SetupWindow: NSObject {
             }
         })
 
-        add(to: stack, Row(title: "Cursor mischief", tag: "info") { row in
-            row.set(nil, "heists and warps need NO macOS permission - they are governed by buddy's own "
-                    + "leash: the mischief slider, the disruptive-acts budget, and freeze/panic.")
-        })
-
         add(to: stack, Row(title: "Music control", tag: "optional") { [weak self] row in
             // No reliable read of the Automation grant without prompting;
             // explain the prompt instead of pretending to know.
