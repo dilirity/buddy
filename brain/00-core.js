@@ -36,6 +36,18 @@ globalThis.setMood = function (mood, anim) {
   if (anim) buddy.play(anim);
 };
 
+// Real-world facts about the human live in config.json so they can retune them
+// (work hours, birthday, week start, ...) without touching code - the settings
+// UI renders editors straight from the entries' type/label metadata. Entries:
+// { value, type: hour|date|weekday|number|text|bool, label }. Read at call
+// time, not cached - edits apply on the next evaluation. Behaviors tied to a
+// real-world fact should name an entry here instead of hard-coding it.
+globalThis.cfg = (name, fallback) => {
+  const c = buddy.data("config.json");
+  const e = c && c[name];
+  return e && e.value !== undefined && e.value !== null ? e.value : fallback;
+};
+
 // Dialogue pools live in lines.json so the nightly mutator can add lines
 // without touching code.
 globalThis.lines = (key) => {
