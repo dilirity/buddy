@@ -21,7 +21,7 @@
 - Repetition: pickFresh covers lines; behaviors themselves repeat - mutator mandate covers, watch if it needs mechanical help (per-behavior cooldowns in core).
 
 ## Distribution (early-version gaps, noted 2026-07-30; none block friendly handouts)
-- No sequential first-run wizard: after the persona interview, the consent switches (permissions, hooks, chat, evolution) sit in the Setup panel the user must find themselves. Spec wanted the panel to walk rows top-to-bottom on first run (DISTRIBUTION.md WS2).
+- Wizard-lite done: the interview now hands off to Settings > System on save, so the consent switches are no longer undiscoverable. A true sequential walk of the rows (DISTRIBUTION.md WS2) remains unbuilt; judge whether the handoff is enough after a real stranger install.
 - Test menu shows `visitPhone` on mac-only installs - buddy fakes a phone trip to a topic nobody subscribes to. Gate menu entries on caps, or make the act admit it has no phone.
 - Setup panel gaps vs spec (WS3): no `ANTHROPIC_API_KEY` detection (per-token billing warning), no cheap validation call when a model is picked (typo fails silently later).
 - Android APK bakes the BUILDER's live brain (build.gradle copies ~/.buddy/brain at build time) - diary and feedback included. Never share a personally-built APK; recipients build their own. Real fix is brain sync (below) or a neutral seed asset.
