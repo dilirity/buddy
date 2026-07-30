@@ -59,6 +59,8 @@ Panel re-checks live (poll or on-focus), so a revoked permission shows up withou
 
 Post-update grant loss (no-signing consequence): on launch the app compares the running binary against a stored stamp; if the binary changed and Accessibility is no longer granted, buddy says so out loud and opens the Setup panel instead of silently losing abilities. Evolution never triggers this - it edits brain JS only, never the binary.
 
+Permission prompts fire ONLY from Setup panel buttons (Accessibility Fix registers the current binary then opens the pane; Music "Request access" pokes the player). Never automatically on launch - the app may point at Setup, but the user clicks the trigger.
+
 ### WS3: Claude detection, spend consent, evolution schedule
 
 Detection:

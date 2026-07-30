@@ -8,6 +8,9 @@ import ApplicationServices
 final class SetupWindow: NSObject {
     // Wired by the controller; the peer list lives with coordination.
     var peersProvider: (() -> [String])?
+    // Wired by the controller; pokes the music player to fire the Automation prompt.
+    var musicRequest: (() -> Void)?
+
 
     private var window: NSWindow?
     private var refreshTimer: Timer?
@@ -82,20 +85,29 @@ final class SetupWindow: NSObject {
                 row.set(true, "granted - cursor mischief, typing sense, and the panic gesture work")
             } else {
                 row.set(false, "not granted - no cursor stealing, no typing awareness, no double-Esc panic. "
-                        + "If Buddy is already listed there, toggle it off and on: rebuilding the binary invalidates the old grant",
-                        button: "Open System Settings") {
+                        + "A listed Buddy entry may belong to an OLD build (updates reset grants): remove it "
+                        + "with the minus button, then use Fix here to register this build and toggle it on",
+                        button: "Fix...") {
+                    // Registers THIS binary in the Accessibility list (a stale
+                    // entry from a previous build toggles the wrong fingerprint),
+                    // then opens the pane so the user flips the switch.
+                    let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+                    AXIsProcessTrustedWithOptions(opts)
                     NSWorkspace.shared.open(URL(string:
                         "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
                 }
             }
         })
 
-        add(to: stack, Row(title: "Music control", tag: "optional") { row in
+        add(to: stack, Row(title: "Music control", tag: "optional") { [weak self] row in
             // No reliable read of the Automation grant without prompting;
             // explain the prompt instead of pretending to know.
-            row.set(nil, "buddy DJs via Music/Spotify. macOS asks \"Buddy would like to control...\" the first time"
-                    + " after every buddy update (updates reset permission grants) - approve once and it sticks"
-                    + " until the next update. Evolution never resets it.")
+            row.set(nil, "buddy can control Music/Spotify. macOS asks \"Buddy would like to control...\" once"
+                    + " per buddy update (updates reset grants; evolution never does). If you haven't seen"
+                    + " the prompt, request it now instead of meeting it mid-song next week.",
+                    button: "Request access") {
+                self?.musicRequest?()
+            }
         })
 
         add(to: stack, Row(title: "Claude Code", tag: "optional") { [weak self] row in

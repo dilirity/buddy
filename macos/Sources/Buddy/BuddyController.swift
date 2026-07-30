@@ -101,6 +101,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
 
         coordination = Coordination(deviceId: "mac", rank: 1, owner: true)
         setup.peersProvider = { [weak self] in self?.coordination.knownPeers ?? [] }
+        setup.musicRequest = { [weak self] in self?.music.requestAccess() }
         coordination.onDepart = { [weak self] in
             guard let self else { return }
             self.stopMoving()
