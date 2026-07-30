@@ -81,7 +81,8 @@ final class SetupWindow: NSObject {
             if AXIsProcessTrusted() {
                 row.set(true, "granted - cursor mischief, typing sense, and the panic gesture work")
             } else {
-                row.set(false, "not granted - no cursor stealing, no typing awareness, no double-Esc panic",
+                row.set(false, "not granted - no cursor stealing, no typing awareness, no double-Esc panic. "
+                        + "If Buddy is already listed there, toggle it off and on: rebuilding the binary invalidates the old grant",
                         button: "Open System Settings") {
                     NSWorkspace.shared.open(URL(string:
                         "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
@@ -104,17 +105,6 @@ final class SetupWindow: NSObject {
             }
         })
 
-        add(to: stack, Row(title: "Claude account", tag: "info") { row in
-            guard let acct = SetupWindow.claudeAccount() else {
-                row.set(nil, "no account info (is Claude Code logged in?)")
-                return
-            }
-            var text = acct.email
-            if let org = acct.orgType { text += " - \(org)" }
-            text += ". Chat and evolution spend THIS account's usage - nothing runs without your consent below."
-            row.set(nil, text)
-        })
-
         add(to: stack, Row(title: "Claude hooks", tag: "recommended") { row in
             let settings = FileManager.default.homeDirectoryForCurrentUser
                 .appendingPathComponent(".claude/settings.json")
@@ -125,6 +115,17 @@ final class SetupWindow: NSObject {
                 row.set(false, "not installed - buddy is blind to your Claude sessions. "
                         + "For now: python3 macos/bin/install-hooks.py (in-app flow coming)")
             }
+        })
+
+        add(to: stack, Row(title: "Claude account", tag: "info") { row in
+            guard let acct = SetupWindow.claudeAccount() else {
+                row.set(nil, "no account info (is Claude Code logged in?)")
+                return
+            }
+            var text = acct.email
+            if let org = acct.orgType { text += " - \(org)" }
+            text += ". Chat and evolution spend THIS account's usage - nothing runs without your consent below."
+            row.set(nil, text)
         })
 
         add(to: stack, Row(title: "Nightly evolution", tag: "spends usage") { [weak self] row in
@@ -212,7 +213,10 @@ final class SetupWindow: NSObject {
         guard !claudeChecked else { return }
         claudeChecked = true
         DispatchQueue.global().async { [weak self] in
-            let out = SetupWindow.run("/bin/bash", ["-lc", "claude --version 2>/dev/null"])
+            // GUI apps get a bare PATH; extend it the same way Think does or
+            // claude installs in ~/.local/bin and homebrew are invisible here.
+            let out = SetupWindow.run("/bin/bash", ["-c", "claude --version 2>/dev/null"],
+                                      pathExtra: ":/opt/homebrew/bin:/usr/local/bin:" + NSHomeDirectory() + "/.local/bin")
             DispatchQueue.main.async {
                 self?.claudeVersion = out.isEmpty ? nil : out
                 self?.refreshAll()
@@ -252,10 +256,15 @@ final class SetupWindow: NSObject {
         return hours < 1 ? "under an hour ago" : hours < 48 ? "\(hours)h ago" : "\(hours / 24)d ago"
     }
 
-    private static func run(_ path: String, _ args: [String]) -> String {
+    private static func run(_ path: String, _ args: [String], pathExtra: String = "") -> String {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: path)
         p.arguments = args
+        if !pathExtra.isEmpty {
+            var env = ProcessInfo.processInfo.environment
+            env["PATH"] = (env["PATH"] ?? "") + pathExtra
+            p.environment = env
+        }
         let pipe = Pipe()
         p.standardOutput = pipe
         p.standardError = FileHandle.nullDevice
