@@ -150,6 +150,14 @@ class BuddyBrain(private val appContext: Context, private val shell: Shell) {
         }
     }
 
+    // JS objects AND arrays both arrive as JSObject; JSONObject(stringify)
+    // throws on an array, silently dropping the write (jsFn eats it).
+    private fun toJsonValue(value: Any): Any {
+        if (value !is JSObject) return value
+        val s = value.stringify()
+        return if (s.trimStart().startsWith("[")) org.json.JSONArray(s) else JSONObject(s)
+    }
+
     private fun installAPI(c: QuickJSContext) {
         val buddy = c.createNewJSObject()
 
@@ -306,7 +314,7 @@ class BuddyBrain(private val appContext: Context, private val shell: Shell) {
             val key = args[0] as String
             val value = args.getOrNull(1)
             if (value == null) memory.remove(key)
-            else memory.put(key, if (value is JSObject) JSONObject(value.stringify()) else value)
+            else memory.put(key, toJsonValue(value))
             saveMemory()
             null
         })
@@ -320,6 +328,27 @@ class BuddyBrain(private val appContext: Context, private val shell: Shell) {
             val f = File(brainDir, name)
             if (!f.exists()) return@jsFn null
             try { c.parseJSON(f.readText()) } catch (e: Exception) { null }
+        })
+
+        // Declared facts, mirrors the mac's ~/.buddy/config.json (values only;
+        // the schema ships with the brain assets). Nothing syncs it from the
+        // mac yet - absent file means schema defaults, exactly like a fresh
+        // mac install. configSet is the same confirmation-gated fence as the
+        // mac verb: only for a value the human just explicitly confirmed.
+        val configFile = File(appContext.filesDir, "config.json")
+        fun loadUserConfig(): JSONObject =
+            try { JSONObject(configFile.readText()) } catch (e: Exception) { JSONObject() }
+        buddy.setProperty("userConfig", jsFn("userConfig") { _ ->
+            c.parseJSON(loadUserConfig().toString())
+        })
+        buddy.setProperty("configSet", jsFn("configSet") { args ->
+            val key = args[0] as String
+            val value = args.getOrNull(1)
+            val json = loadUserConfig()
+            if (value == null) json.remove(key)
+            else json.put(key, toJsonValue(value))
+            configFile.writeText(json.toString(2))
+            null
         })
 
         // Append-only feedback, mirrors the mac verb (no git on the phone;
