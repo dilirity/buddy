@@ -13,6 +13,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
     // Read fresh on every use so settings-window changes apply immediately.
     private var invariants: Invariants { Invariants.load() }
     private let settings = SettingsWindow()
+    private let setup = SetupWindow()
     let music = MusicBridge()
     private let talk = TalkPanel()
     private var statusItem: NSStatusItem!
@@ -99,6 +100,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         senses.start()
 
         coordination = Coordination(deviceId: "mac", rank: 1, owner: true)
+        setup.peersProvider = { [weak self] in self?.coordination.knownPeers ?? [] }
         coordination.onDepart = { [weak self] in
             guard let self else { return }
             self.stopMoving()
@@ -791,6 +793,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Talk to Buddy…", action: #selector(menuTalk), keyEquivalent: "t"))
         menu.addItem(NSMenuItem(title: "Settings…", action: #selector(menuSettings), keyEquivalent: ","))
+        menu.addItem(NSMenuItem(title: "Setup…", action: #selector(menuSetup), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: "Open Brain Folder", action: #selector(menuOpenBrain), keyEquivalent: ""))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit Buddy", action: #selector(menuQuit), keyEquivalent: "q"))
@@ -966,6 +969,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
     @objc private func menuReload() { reloadBrainAndSprites() }
     @objc private func menuOpenBrain() { NSWorkspace.shared.open(BuddyPaths.brain) }
     @objc private func menuSettings() { settings.show() }
+    @objc private func menuSetup() { setup.show() }
     @objc private func menuTalk() { spriteTalkRequested() }
     @objc private func menuQuit() { NSApp.terminate(nil) }
 
