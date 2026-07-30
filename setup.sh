@@ -75,6 +75,22 @@ if [ ! -f "$BUDDY_HOME/phone.json" ]; then
   printf '{"topic": "buddy-%s"}\n' "$(openssl rand -hex 10)" > "$BUDDY_HOME/phone.json"
   echo "generated ntfy topic"
 fi
+# Spend config. Fresh installs spend nothing until consented in the app's
+# Setup panel; an install that predates spend.json was built when chat and
+# nightly evolution were always-on, so keep that behavior for it.
+if [ ! -f "$BUDDY_HOME/spend.json" ]; then
+  if [ -f "$BUDDY_HOME/coordination-mac.json" ] || launchctl list com.buddy.mutator >/dev/null 2>&1; then
+    cat > "$BUDDY_HOME/spend.json" <<'JSON'
+{
+  "chatEnabled": true,
+  "chatModel": "haiku",
+  "evolutionModel": "",
+  "evolutionSchedule": "nightly"
+}
+JSON
+    echo "kept existing spend behavior (chat on, nightly evolution)"
+  fi
+fi
 # Device-pairing secret. No secret file = coordination stays off entirely.
 if [ ! -f "$BUDDY_HOME/secret" ]; then
   if [ -f "$BUDDY_HOME/coordination-mac.json" ]; then

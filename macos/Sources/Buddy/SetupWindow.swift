@@ -18,6 +18,8 @@ final class SetupWindow: NSObject {
     // Live Privacy-list state lives with the controller (event-driven via
     // com.apple.accessibility.api); the panel just reads it.
     var keyAccessProvider: (() -> Bool)?
+    // Fired after spend.json changes so warm think sessions restart or shut down.
+    var onSpendChanged: (() -> Void)?
 
     private final class Row {
         let dot = NSTextField(labelWithString: "●")
@@ -25,6 +27,9 @@ final class SetupWindow: NSObject {
         let tag: NSTextField
         let detail = NSTextField(labelWithString: "")
         let button = NSButton(title: "", target: nil, action: nil)
+        // Up to two dropdowns per row (e.g. evolution: schedule + model).
+        let popups = [NSPopUpButton(), NSPopUpButton()]
+        var popupHandlers: [Int: (String) -> Void] = [:]
         var action: (() -> Void)?
         let refresh: (Row) -> Void
 
@@ -44,6 +49,26 @@ final class SetupWindow: NSObject {
                 button.isHidden = false
             } else {
                 button.isHidden = true
+            }
+        }
+
+        // options: (id stored in config, label shown). Rebuilds only when the
+        // option set changes; keeps the user's open menu stable across refresh.
+        func setPopup(_ index: Int, options: [(String, String)], selected: String,
+                      handler: @escaping (String) -> Void) {
+            let popup = popups[index]
+            popup.isHidden = false
+            popupHandlers[index] = handler
+            if popup.numberOfItems != options.count {
+                popup.removeAllItems()
+                for (id, label) in options {
+                    popup.addItem(withTitle: label)
+                    popup.lastItem?.representedObject = id
+                }
+            }
+            if let idx = options.firstIndex(where: { $0.0 == selected }),
+               popup.indexOfSelectedItem != idx {
+                popup.selectItem(at: idx)
             }
         }
     }
@@ -122,7 +147,7 @@ final class SetupWindow: NSObject {
                 row.set(true, "installed - buddy reacts to your Claude Code sessions")
             } else {
                 row.set(false, "not installed - buddy is blind to your Claude sessions. "
-                        + "For now: python3 macos/bin/install-hooks.py (in-app flow coming)")
+                        + "Install from the buddy repo: python3 macos/bin/install-hooks.py")
             }
         })
 
@@ -137,16 +162,64 @@ final class SetupWindow: NSObject {
             row.set(nil, text)
         })
 
-        add(to: stack, Row(title: "Nightly evolution", tag: "spends usage") { [weak self] row in
-            let loaded = SetupWindow.launchdLoaded("com.buddy.mutator")
-            var text: String
-            if loaded {
-                text = "on - buddy rewrites part of its brain at 03:33 every night"
-                if let age = SetupWindow.lastEvolutionAge() { text += " (last: \(age))" }
-                row.set(true, text, button: "Disable") { self?.setEvolution(false) }
+        add(to: stack, Row(title: "Chat & thoughts", tag: "spends usage") { [weak self] row in
+            let sp = Spend.load()
+            if sp.chatEnabled {
+                row.set(true, "on - chatting and buddy's idle thoughts use small Claude calls",
+                        button: "Disable") {
+                    var s = Spend.load()
+                    s.chatEnabled = false
+                    s.save()
+                    self?.onSpendChanged?()
+                    self?.refreshAll()
+                }
             } else {
-                text = "off - buddy never changes (Evolve Now in the menu still works)"
-                row.set(false, text, button: "Enable...") { self?.setEvolution(true) }
+                row.set(nil, "off - buddy speaks in canned lines only; chat gets a small-brain reply",
+                        button: "Enable...") {
+                    guard self?.consentToSpend(what: "Chatting with buddy and its occasional idle thoughts "
+                        + "run small Claude calls") == true else { return }
+                    var s = Spend.load()
+                    s.chatEnabled = true
+                    s.save()
+                    self?.onSpendChanged?()
+                    self?.refreshAll()
+                }
+            }
+            row.setPopup(0, options: [("haiku", "haiku"), ("sonnet", "sonnet"), ("opus", "opus")],
+                         selected: sp.chatModel) { [weak self] model in
+                var s = Spend.load()
+                s.chatModel = model
+                s.save()
+                self?.onSpendChanged?()
+            }
+        })
+
+        add(to: stack, Row(title: "Evolution", tag: "spends usage") { [weak self] row in
+            let sp = Spend.load()
+            let loaded = SetupWindow.launchdLoaded("com.buddy.mutator")
+            switch sp.evolutionSchedule {
+            case "nightly", "weekly":
+                let when = sp.evolutionSchedule == "nightly" ? "every night at 03:33" : "Sunday nights at 03:33"
+                var text = "buddy rewrites part of its brain \(when)"
+                if let age = SetupWindow.lastEvolutionAge() { text += " (last: \(age))" }
+                if !loaded { text = "scheduled but the service is not loaded - pick the schedule again to repair" }
+                row.set(loaded, text)
+            case "manual":
+                row.set(nil, "only when you use Evolve Now in the menu")
+            default:
+                row.set(nil, "off - buddy never changes")
+            }
+            row.setPopup(0, options: [("off", "off"), ("manual", "manual only"),
+                                      ("weekly", "weekly"), ("nightly", "nightly")],
+                         selected: sp.evolutionSchedule) { [weak self] sched in
+                self?.setEvolution(schedule: sched)
+            }
+            row.setPopup(1, options: [("", "default model"), ("haiku", "haiku"),
+                                      ("sonnet", "sonnet"), ("opus", "opus")],
+                         selected: sp.evolutionModel) { model in
+                var s = Spend.load()
+                s.evolutionModel = model
+                s.save()
             }
         })
 
@@ -194,6 +267,15 @@ final class SetupWindow: NSObject {
         top.addArrangedSubview(row.title)
         top.addArrangedSubview(row.tag)
         top.addArrangedSubview(row.button)
+        for (i, popup) in row.popups.enumerated() {
+            popup.isHidden = true
+            popup.controlSize = .small
+            popup.font = NSFont.systemFont(ofSize: 11)
+            popup.target = self
+            popup.action = #selector(rowPopup(_:))
+            popup.identifier = NSUserInterfaceItemIdentifier("\(rows.count - 1):\(i)")
+            top.addArrangedSubview(popup)
+        }
 
         row.detail.font = NSFont.systemFont(ofSize: 11)
         row.detail.textColor = .secondaryLabelColor
@@ -214,6 +296,14 @@ final class SetupWindow: NSObject {
     @objc private func rowButton(_ sender: NSButton) {
         guard let idx = sender.identifier.flatMap({ Int($0.rawValue) }), rows.indices.contains(idx) else { return }
         rows[idx].action?()
+    }
+
+    @objc private func rowPopup(_ sender: NSPopUpButton) {
+        let parts = (sender.identifier?.rawValue ?? "").split(separator: ":")
+        guard parts.count == 2, let rowIdx = Int(parts[0]), let popIdx = Int(parts[1]),
+              rows.indices.contains(rowIdx),
+              let id = sender.selectedItem?.representedObject as? String else { return }
+        rows[rowIdx].popupHandlers[popIdx]?(id)
     }
 
     // MARK: - Checks
@@ -290,7 +380,25 @@ final class SetupWindow: NSObject {
             .appendingPathComponent("Library/LaunchAgents/com.buddy.mutator.plist")
     }
 
-    private func setEvolution(_ on: Bool) {
+    // Shared consent gate for anything that starts spending Claude usage.
+    // Returns true when the user approved.
+    private func consentToSpend(what: String) -> Bool {
+        var spend = "your Claude account"
+        if let acct = SetupWindow.claudeAccount() {
+            spend = acct.email
+            if let t = acct.orgType { spend += " (\(t))" }
+        }
+        let a = NSAlert()
+        a.messageText = "Spend Claude usage?"
+        a.informativeText = "\(what), on: \(spend)."
+            + " If this is a company or org account, make sure that's okay first."
+            + " Turn it off here any time."
+        a.addButton(withTitle: "Enable")
+        a.addButton(withTitle: "Cancel")
+        return a.runModal() == .alertFirstButtonReturn
+    }
+
+    private func setEvolution(schedule: String) {
         // The service is a per-user shared resource; a sandbox test instance
         // must not flip the real one.
         if BuddyPaths.isSandbox {
@@ -298,24 +406,25 @@ final class SetupWindow: NSObject {
             a.messageText = "Sandbox instance"
             a.informativeText = "This buddy runs against a BUDDY_HOME sandbox; the evolution service belongs to the real install."
             a.runModal()
+            refreshAll()
             return
         }
-        if on {
-            let a = NSAlert()
-            a.messageText = "Enable nightly evolution?"
-            var spend = "your Claude account"
-            if let acct = SetupWindow.claudeAccount() {
-                spend = acct.email
-                if let t = acct.orgType { spend += " (\(t))" }
+        var sp = Spend.load()
+        let wasSpending = ["weekly", "nightly"].contains(sp.evolutionSchedule)
+        let willSpend = ["weekly", "nightly"].contains(schedule)
+        if willSpend && !wasSpending {
+            let when = schedule == "nightly" ? "One Claude session every night at 03:33"
+                                             : "One Claude session every Sunday at 03:33"
+            guard consentToSpend(what: "\(when) rewrites part of buddy's brain") else {
+                refreshAll() // snap the popup back
+                return
             }
-            a.informativeText = "Every night at 03:33 buddy runs one Claude session that rewrites part of its brain."
-                + " That session spends usage on: \(spend)."
-                + " If this is a company or org account, make sure that's okay before enabling."
-                + " Disable it here any time."
-            a.addButton(withTitle: "Enable")
-            a.addButton(withTitle: "Cancel")
-            guard a.runModal() == .alertFirstButtonReturn else { return }
+        }
+        sp.evolutionSchedule = schedule
+        sp.save()
+        if willSpend {
             let runsh = BuddyPaths.home.appendingPathComponent("mutator/run.sh").path
+            let weekday = schedule == "weekly" ? "<key>Weekday</key><integer>0</integer>" : ""
             let plist = """
             <?xml version="1.0" encoding="UTF-8"?>
             <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -329,7 +438,7 @@ final class SetupWindow: NSObject {
                 </array>
                 <key>StartCalendarInterval</key>
                 <dict>
-                    <key>Hour</key><integer>3</integer>
+                    \(weekday)<key>Hour</key><integer>3</integer>
                     <key>Minute</key><integer>33</integer>
                 </dict>
                 <key>StandardOutPath</key><string>/tmp/buddy-mutator.out</string>
@@ -337,13 +446,14 @@ final class SetupWindow: NSObject {
             </dict>
             </plist>
             """
+            _ = SetupWindow.run("/bin/launchctl", ["unload", mutatorPlist.path])
             try? plist.data(using: .utf8)?.write(to: mutatorPlist)
             _ = SetupWindow.run("/bin/launchctl", ["load", mutatorPlist.path])
-            buddyLog("setup: evolution service enabled")
+            buddyLog("setup: evolution schedule = \(schedule)")
         } else {
             _ = SetupWindow.run("/bin/launchctl", ["unload", mutatorPlist.path])
             try? FileManager.default.removeItem(at: mutatorPlist)
-            buddyLog("setup: evolution service disabled")
+            buddyLog("setup: evolution schedule = \(schedule), service removed")
         }
         refreshAll()
     }

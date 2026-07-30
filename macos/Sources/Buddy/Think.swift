@@ -20,6 +20,11 @@ final class Think {
 
     func ask(_ prompt: String, completion: @escaping (String?) -> Void) {
         queue.async {
+            // Spend gate: chat/think disabled means no claude session, ever.
+            guard Spend.load().chatEnabled else {
+                DispatchQueue.main.async { completion(nil) }
+                return
+            }
             self.ensureProcess()
             guard let stdin = self.stdinHandle else {
                 DispatchQueue.main.async { completion(nil) }
@@ -47,7 +52,10 @@ final class Think {
     func reset() {
         queue.async {
             self.teardown()
-            self.ensureProcess()
+            // Pre-warm only when chat may spend; otherwise stay cold.
+            if Spend.load().chatEnabled {
+                self.ensureProcess()
+            }
         }
     }
 
@@ -58,7 +66,8 @@ final class Think {
         let persona = (try? String(contentsOf: BuddyPaths.persona, encoding: .utf8)) ?? ""
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        var args = ["claude", "-p", "--model", "haiku",
+        let model = Spend.load().chatModel
+        var args = ["claude", "-p", "--model", model.isEmpty ? "haiku" : model,
                     "--input-format", "stream-json",
                     "--output-format", "stream-json", "--verbose"]
         if !persona.isEmpty {

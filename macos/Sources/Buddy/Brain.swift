@@ -26,6 +26,13 @@ final class Brain {
     // queue behind ambient musings; recycled fast to keep context lean.
     private let thinkFast = Think(maxTurns: 12)
 
+    // Spend config changed: restart (or shut down) the warm sessions so the
+    // new model/enabled state applies immediately, not at next brain reload.
+    func spendConfigChanged() {
+        think.reset()
+        thinkFast.reset()
+    }
+
     func reload() {
         generation += 1
         for (_, t) in timers { t.invalidate() }
@@ -119,9 +126,11 @@ final class Brain {
         set("log", log)
 
         // What is real on THIS device - the brain gates behaviors on it.
+        // think reflects the spend config live: chat disabled = the brain
+        // falls back to canned lines, exactly like a device with no claude.
         let caps: @convention(block) () -> [String: Bool] = {
             ["cursor": true, "windows": true, "layer": true, "music": true, "glyph": false,
-             "think": true, "phonePush": true, "feedback": true, "claudeEvents": true]
+             "think": Spend.load().chatEnabled, "phonePush": true, "feedback": true, "claudeEvents": true]
         }
         set("caps", caps)
 

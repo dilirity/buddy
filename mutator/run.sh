@@ -38,9 +38,13 @@ fi
 # "What's New" in the menu until the next mutation graduates them.
 cp "$BRAIN/tests.json" "$BUDDY_HOME/tests.prev.json" 2>/dev/null || true
 
+# Model for evolution runs, picked in the app's Setup panel (empty = default).
+EVOLVE_MODEL=$(python3 -c "import json; print(json.load(open('$BUDDY_HOME/spend.json')).get('evolutionModel', ''))" 2>/dev/null || true)
+
 claude -p "$(cat "$PROMPT")" \
   --permission-mode acceptEdits \
   --add-dir "$BUDDY_HOME" \
+  ${EVOLVE_MODEL:+--model "$EVOLVE_MODEL"} \
   >> "$LOG" 2>&1
 
 # Safety net: the mutator was told to check and commit, but trust nothing.

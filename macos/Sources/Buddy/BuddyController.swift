@@ -102,6 +102,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         coordination = Coordination(deviceId: "mac", rank: 1, owner: true)
         setup.peersProvider = { [weak self] in self?.coordination.knownPeers ?? [] }
         setup.keyAccessProvider = { [weak self] in self?.keyAccessGranted ?? AXIsProcessTrusted() }
+        setup.onSpendChanged = { [weak self] in self?.brain.spendConfigChanged() }
         coordination.onDepart = { [weak self] in
             guard let self else { return }
             self.stopMoving()
@@ -978,11 +979,18 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
     // If the last successful evolution is stale, run one ourselves.
     func checkEvolutionStaleness() {
         guard !evolving, !isFrozen else { return }
+        // Catch-up only makes sense for a schedule; manual/off never auto-runs.
+        let staleAfter: TimeInterval
+        switch Spend.load().evolutionSchedule {
+        case "nightly": staleAfter = 26 * 3600
+        case "weekly": staleAfter = 8 * 24 * 3600
+        default: return
+        }
         let url = BuddyPaths.home.appendingPathComponent("last-evolution")
         let last = (try? String(contentsOf: url, encoding: .utf8))
             .flatMap { Double($0.trimmingCharacters(in: .whitespacesAndNewlines)) } ?? 0
         let age = Date().timeIntervalSince1970 - last
-        if age > 26 * 3600 {
+        if age > staleAfter {
             buddyLog("evolution stale (\(Int(age / 3600))h), auto-triggering")
             runEvolve()
         }
@@ -1010,9 +1018,11 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         brain.emit("test:\(id)")
     }
 
-    // Live device roster, rebuilt every time the menu opens.
+    // Live device roster, rebuilt every time the menu opens. Evolve Now only
+    // exists while evolution is allowed at all (manual or scheduled).
     func menuWillOpen(_ menu: NSMenu) {
         rebuildDevicesMenu()
+        evolveItem?.isHidden = Spend.load().evolutionSchedule == "off"
     }
 
     private func rebuildDevicesMenu() {
