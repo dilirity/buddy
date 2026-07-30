@@ -19,6 +19,21 @@ if CommandLine.arguments.contains("--perm-check") {
     exit(AXIsProcessTrusted() ? 0 : 1)
 }
 
+// `Buddy --hooks-dry <file>`: run the real hook install/remove logic against
+// the given settings file (a copy, not the live one) and print each phase.
+if let idx = CommandLine.arguments.firstIndex(of: "--hooks-dry"),
+   CommandLine.arguments.count > idx + 1 {
+    Hooks.settingsURL = URL(fileURLWithPath: CommandLine.arguments[idx + 1])
+    print("installed: \(Hooks.installed())")
+    print("install plan:\n" + Hooks.installPlan().joined(separator: "\n"))
+    print("remove plan:\n" + Hooks.removePlan().joined(separator: "\n"))
+    print("running remove(): \(Hooks.remove())")
+    print("after remove, installed: \(Hooks.installed())")
+    print("running install(): \(Hooks.install())")
+    print("after install, installed: \(Hooks.installed())")
+    exit(0)
+}
+
 if CommandLine.arguments.contains("--check") {
     BuddyPaths.bootstrap()
     var ok = true

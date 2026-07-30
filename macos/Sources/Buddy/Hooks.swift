@@ -9,9 +9,10 @@ enum Hooks {
                          "PostToolUse", "Stop", "Notification", "SessionEnd"]
     static let marker = "/.buddy/bin/buddy-hook"
 
-    static var settingsURL: URL {
+    // Overridable for `Buddy --hooks-dry <file>`, which exercises these exact
+    // code paths against a copy instead of the live settings.
+    static var settingsURL: URL =
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/settings.json")
-    }
 
     private static func hookCommand(_ event: String) -> String {
         BuddyPaths.home.appendingPathComponent("bin/buddy-hook").path + " " + event
