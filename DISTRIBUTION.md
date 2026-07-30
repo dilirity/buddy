@@ -106,7 +106,7 @@ Collected at first run via a small in-character form (skippable, editable later 
 - Shows/games/movies for references (stored as `interests`; written into persona.md so the nightly mutator grows quips.json references from it - the starter references list ships empty and the reference act self-gates on empty).
 - Menace slider (seeds the mischief trait, clamped by bounds as always).
 
-As-built: persona.md identity paragraph is rewritten on save, the output-rules paragraph is preserved. Starter brain audit done - no Pete-specific names, shows, or feedback items ship; mutator/prompt.md speaks of "the human".
+As-built: the interview writes memory.json ONLY - persona.md is buddy's own evolving prose and no UI ever writes it. Think composes the facts into the system prompt at use time ("Facts: the human is called X; they love Y"), and the mutator's orders say never to hardcode those facts in the prose. Prefill for pre-interview installs parses the original template phrasing out of persona.md as best effort. Starter brain audit done - no Pete-specific names, shows, or feedback items ship; mutator/prompt.md speaks of "the human".
 
 ### WS6: Android as optional extra, glyph gating
 

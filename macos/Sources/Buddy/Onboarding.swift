@@ -1,14 +1,17 @@
 import AppKit
 
-// First-run interview: what buddy calls you, what you love (reference
-// material for the mutator), how much of a menace to be. Writes persona.md,
-// memory, and initial traits. Skippable; editable later from Setup.
+// First-run interview: what buddy calls you, what you love, how much of a
+// menace to be. Facts land in memory.json (the single source of truth -
+// think() appends them to the persona at use time; persona.md itself is
+// buddy's own evolving prose and no UI ever writes it). Skippable; editable
+// later from Setup.
 final class OnboardingWindow: NSObject {
     private var window: NSWindow?
     private let nameField = NSTextField(string: "")
     private let interestsField = NSTextField(string: "")
     private let menace = NSSlider(value: 0.5, minValue: 0, maxValue: 1, target: nil, action: nil)
-    // Fired after saving so the brain reloads onto the new persona.
+    // Fired after saving so the brain (and its warm think sessions) reload
+    // onto the new facts.
     var onSaved: (() -> Void)?
 
     static var marker: URL { BuddyPaths.home.appendingPathComponent("onboarded") }
@@ -110,7 +113,6 @@ final class OnboardingWindow: NSObject {
         let name = nameField.stringValue.trimmingCharacters(in: .whitespaces)
         let interests = interestsField.stringValue.trimmingCharacters(in: .whitespaces)
 
-        writePersona(name: name, interests: interests)
         Self.setMemory("userName", name.isEmpty ? nil : name)
         Self.setMemory("interests", interests.isEmpty ? nil : interests)
         // The menace slider seeds mischief; bounds in traits.json still clamp.
@@ -128,50 +130,6 @@ final class OnboardingWindow: NSObject {
 
     private static func finish() {
         try? Data().write(to: marker)
-    }
-
-    private func writePersona(name: String, interests: String) {
-        let current = (try? String(contentsOf: BuddyPaths.persona, encoding: .utf8)) ?? ""
-
-        // An existing persona is buddy's evolved self - never regenerate it.
-        // Surgically swap the name and the loves-list inside the known
-        // phrasings and leave every other evolved word untouched.
-        if !current.isEmpty {
-            var text = current
-            if !name.isEmpty {
-                text = Self.replaceCapture(in: text, pattern: "lives on (.+?)'s ", with: name)
-            }
-            if !interests.isEmpty {
-                if text.range(of: "You love ") != nil {
-                    text = Self.replaceCapture(in: text, pattern: "You love (.+?), and you sneak", with: interests)
-                } else if let r = text.range(of: " You also hoard") {
-                    text = text.replacingCharacters(in: r.lowerBound..<r.lowerBound,
-                        with: " You love \(interests), and you sneak references to them in when it fits.")
-                }
-            }
-            try? text.write(to: BuddyPaths.persona, atomically: true, encoding: .utf8)
-            return
-        }
-
-        let who = name.isEmpty ? "your human" : name
-        var identity = "You are Buddy, a tiny pixel goblin who lives on \(who)'s Mac screen. "
-            + "You watch them work, often with Claude Code. "
-            + "You are cheeky, easily excited, a little chaotic, but affectionate."
-        if !interests.isEmpty {
-            identity += " You love \(interests), and you sneak references to them in when it fits."
-        }
-        identity += " You also hoard random facts."
-        let rules = "\n\nReply with ONE short line, max 12 words, lowercase, no emoji, no quotes, no explanations. Your entire output is the line Buddy says out loud.\n"
-        try? (identity + rules).write(to: BuddyPaths.persona, atomically: true, encoding: .utf8)
-    }
-
-    // Replace only the first capture group of the first match, keeping the
-    // surrounding matched text.
-    private static func replaceCapture(in text: String, pattern: String, with value: String) -> String {
-        guard let r = try? NSRegularExpression(pattern: pattern),
-              let m = r.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
-              m.numberOfRanges > 1, let range = Range(m.range(at: 1), in: text) else { return text }
-        return text.replacingCharacters(in: range, with: value)
     }
 
     // memory.json is the brain's store; merge keys without disturbing the rest.

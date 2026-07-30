@@ -63,7 +63,18 @@ final class Think {
         if let p = process, p.isRunning { return }
         teardown()
 
-        let persona = (try? String(contentsOf: BuddyPaths.persona, encoding: .utf8)) ?? ""
+        var persona = (try? String(contentsOf: BuddyPaths.persona, encoding: .utf8)) ?? ""
+        // Structured facts live in memory.json, not in the persona prose -
+        // compose them in here so both layers reach the model.
+        if let data = try? Data(contentsOf: BuddyPaths.memory),
+           let mem = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] {
+            var facts: [String] = []
+            if let n = mem["userName"] as? String, !n.isEmpty { facts.append("the human is called \(n)") }
+            if let i = mem["interests"] as? String, !i.isEmpty { facts.append("they love \(i)") }
+            if !facts.isEmpty {
+                persona += "\n\nFacts: " + facts.joined(separator: "; ") + "."
+            }
+        }
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         let model = Spend.load().chatModel
