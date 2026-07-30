@@ -8,44 +8,49 @@ A pixel goblin that lives on your screen, watches your Claude Code sessions, tal
 - **Brain** (`~/.buddy/brain/*.js` + JSON): all behavior, appearance (`sprites.json` pixel maps), persona, and quips. Plain JS run in JavaScriptCore, hot-reloaded on change. Bad JS logs and skips - it cannot crash the shell.
 - **Mutator** (`mutator/`): nightly `claude -p` run against the live brain with standing orders to evolve it. Verifies with `Buddy --check`, reverts on failure, commits to the brain's own git repo. Writes a `secret-changelog.md` you promised not to read.
 
+## Requirements
+
+- macOS 13+ with Xcode Command Line Tools (`xcode-select --install`)
+- Optional but strongly recommended: [Claude Code](https://claude.com/claude-code) logged in - powers chat, generative remarks, and nightly evolution. Without it buddy still runs, on canned lines only.
+
 ## Install
 
 ```bash
-./setup.sh                        # deps check + build + install to ~/.buddy + secrets + launch
-python3 macos/bin/install-hooks.py  # wire Claude Code hooks (backs up settings.json)
+./setup.sh    # deps check + build + install to ~/.buddy + per-install secrets + launch
 ```
 
-`setup.sh` never touches `~/.claude` and never installs the nightly evolution service - both need explicit consent (hooks via the script above for now; the in-app Setup panel takes over both as it lands).
+On first launch buddy introduces itself and asks a few questions (your name, pronouns, what you love, how much of a menace to be). Skippable; everything is editable later.
 
-Nightly mutator (optional, needs `claude` CLI logged in):
+**Then open the menu bar goblin `ᴥ` > Setup.** Everything that spends money or touches your config is OFF until you consent there:
 
-```bash
-sed "s|__HOME__|$HOME|" mutator/com.buddy.mutator.plist > ~/Library/LaunchAgents/com.buddy.mutator.plist
-launchctl load ~/Library/LaunchAgents/com.buddy.mutator.plist
-```
+- **Accessibility permission** - typing awareness, cursor mischief, the double-Esc panic gesture. Buddy degrades gracefully without it.
+- **Claude Code hooks** - lets buddy react to your coding sessions. Shows a diff, backs up `~/.claude/settings.json`, reversible.
+- **Chat** - talk to buddy (double-click it). Uses your Claude subscription; pick the model.
+- **Nightly evolution** - the self-mutation service (off / manual / weekly / nightly). Until enabled, "Evolve Now" in the menu still works for one-off mutations.
 
-Or trigger a mutation on demand: menu bar `ᴥ` > Evolve Now. Buddy plays its evolve animation while the mutator works; tests added by the latest mutation appear under "What's New ✨" until the next one graduates them.
-
-Grant Input Monitoring permission (menu > Setup > Fix) - needed for typing awareness and the double-Esc panic gesture. Cursor mischief needs no permission; it is governed by buddy's own settings. Buddy degrades gracefully without the grant.
+`setup.sh` itself never touches `~/.claude` and never installs the evolution service - the Setup panel owns both, with consent.
 
 ## Controls
 
-- **Drag** buddy anywhere. **Click** to poke.
+- **Drag** buddy anywhere. **Click** to poke. **Double-click** to talk.
 - **Double-tap Esc**: panic - buddy freezes for `panicFreezeMinutes`.
-- Menu bar `ᴥ`: freeze/wake, reload brain, open brain folder, quit.
-- `~/.buddy/traits.json`: personality sliders (mischief, chattiness, energy, clinginess, weirdness) with min/max bounds the mutator cannot escape. Edit values while buddy is awake - it will notice, and it will comment.
+- Menu bar `ᴥ`: freeze/wake, reload brain, open brain folder, Evolve Now, Settings, Setup, quit. Tests added by the latest mutation appear under "What's New ✨" until the next one graduates them.
+- **Settings** (menu > Settings): personality sliders, hard limits, and "Your World" - facts buddy's behaviors rely on (your name, what you love, your hours). Evolutions add new entries; they show up there on their own.
+- `~/.buddy/traits.json`: the personality sliders on disk (mischief, chattiness, energy, clinginess, weirdness) with min/max bounds the mutator cannot escape. Edit values while buddy is awake - it will notice, and it will comment.
 - `~/.buddy/invariants.json`: hard limits (max disruptive acts per hour, freeze length). The mutator has no write path here.
+- `~/.buddy/config.json`: your declared facts (written by Settings and onboarding). Outside the brain repo on purpose - evolution failures can never touch it.
 
 ## Dev
 
-Rule one: if `~/.buddy/evolving.lock` exists, an evolution is in progress - do not edit `~/.buddy/brain` or restart the app until it clears. The lock is taken by `mutator/run.sh` (nightly launchd or Evolve Now) and doubles as the app's signal to run the evolve ritual and pause hot-reloading.
+Rule one: if `~/.buddy/evolving.lock` exists, an evolution is in progress - do not edit `~/.buddy/brain` or restart the app until it clears. The lock is taken by `mutator/run.sh` (launchd schedule or Evolve Now) and doubles as the app's signal to run the evolve ritual and pause hot-reloading.
 
 ```bash
-swift run             # runs against ~/.buddy/brain (seeds it from ./brain on first run)
+cd macos
 swift run Buddy --check   # headless brain validation
+swift run                 # run from the checkout (install with setup.sh first so ~/.buddy/brain is seeded)
 echo '{"_event":"Stop","_ts":0}' >> ~/.buddy/events.jsonl   # fake a hook event
 ```
 
 ## v1.5 ideas
 
-Ball toy (drop it, buddy fetches), peek-from-screen-edge, menu-bar walking, Slack event feed, "what is Pete looking at" vision comments. The mutator files wishes for new capabilities in `~/.buddy/brain/wishes.md` - read it occasionally.
+Ball toy (drop it, buddy fetches), peek-from-screen-edge, menu-bar walking, Slack event feed, "what is the human looking at" vision comments. The mutator files wishes for new capabilities in `~/.buddy/brain/wishes.md` (appears once it starts evolving) - read it occasionally.

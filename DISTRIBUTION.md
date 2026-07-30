@@ -100,13 +100,13 @@ BUDDY_SELF guard (so buddy's own claude sessions do not fire the user's hooks) i
 
 Everything Pete-flavored lives in brain data files; the shipped defaults must become neutral, with a first-run interview filling them in.
 
-Collected at first run via a small in-character form (skippable, editable later from Setup > Persona; existing installs get an `onboarded` marker from setup.sh and never see it):
+Collected at first run via a small in-character form (skippable, editable later from Settings > Your World; existing installs get an `onboarded` marker from setup.sh and never see it):
 
-- What to call the user (stored as `userName` in memory.json; brain JS reads it via the `userName()` helper, "boss" fallback).
-- Shows/games/movies for references (stored as `interests`; written into persona.md so the nightly mutator grows quips.json references from it - the starter references list ships empty and the reference act self-gates on empty).
+- What to call the user, and their pronouns.
+- Shows/games/movies for references (the starter references list ships empty and the reference act self-gates on empty; the nightly mutator grows quips.json references from the loves list).
 - Menace slider (seeds the mischief trait, clamped by bounds as always).
 
-As-built: the interview writes memory.json ONLY - persona.md is buddy's own evolving prose and no UI ever writes it. Think composes the facts into the system prompt at use time ("Facts: the human is called X; they love Y"), and the mutator's orders say never to hardcode those facts in the prose. Prefill for pre-interview installs parses the original template phrasing out of persona.md as best effort. Starter brain audit done - no Pete-specific names, shows, or feedback items ship; mutator/prompt.md speaks of "the human".
+As-built: declared facts live in `~/.buddy/config.json` (flat values, human-owned, unversioned, OUTSIDE the brain repo so a failed-evolution revert can never touch them), declared by `brain/config-schema.json` entries (`{default, type, label}`, mutator-owned) - the interview, the Settings "Your World" section, and chat-confirmed promotions all write the same store through `UserConfig`. Brain JS reads facts via `cfg(name, fallback)` and `userName()` ("boss" fallback); Think composes them into the system prompt at use time ("Facts: the human is called X; their pronouns are Y; they love Z"), and the mutator's orders say never to hardcode them in prose or code. Buddy may propose a newly-heard love in chat; the human's yes promotes it to config via the confirmation-gated `buddy.configSet`. persona.md stays buddy's own evolving prose - no UI ever writes it. Prefill for pre-interview installs parses the original template phrasing out of persona.md as best effort. Starter brain audit done - no author-specific names, shows, or feedback items ship; mutator/prompt.md speaks of "the human".
 
 ### WS6: Android as optional extra, glyph gating
 
