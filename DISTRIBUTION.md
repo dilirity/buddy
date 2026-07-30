@@ -49,13 +49,13 @@ One window, reachable from the status bar menu at any time (not just first run).
 |---|---|---|---|
 | Accessibility | `AXIsProcessTrusted()` via fresh helper process (in-process answers are launch-time-stale) | `AXIsProcessTrustedWithOptions(prompt)` registers the binary + deep-link to the pane | No typing sense, no double-Esc panic |
 | Automation (Music/Spotify) | best effort; informational | Explain the one-time prompt | DJ acts silently fail |
-
-Audited permission map (verified empirically 2026-07-29 on macOS 26): cursor warp/grab, idle detection, and window awareness need NO macOS permission. The global key monitor (typing sense, double-Esc panic) is an NSEvent API gated by ACCESSIBILITY - macOS auto-lists the app there on the arm attempt, and Input Monitoring never lists it (that list is for CGEventTap/IOHID APIs, which buddy does not use). Music verbs need per-app Automation. The key monitor must be re-armed when the grant arrives mid-run; a monitor armed without the grant stays dead forever.
 | Claude Code | `which claude` + `claude --version` | Link to install docs | Small brain mode: no think, no chat, no evolution |
 | Hooks | Parse ~/.claude/settings.json for buddy marker | Opens WS4 consent flow | No reactions to Claude sessions |
 | Evolution service | launchd job loaded? next run time | Toggle: load/unload the agent | Buddy never changes |
 | Spend consent | consent recorded in config? | Opens WS3 flow | think/evolution stay disabled |
 | Device pairing | known peers list | Opens pairing instructions | One body |
+
+Audited permission map (verified empirically 2026-07-29 on macOS 26): cursor warp/grab, idle detection, and window awareness need NO macOS permission. The global key monitor (typing sense, double-Esc panic) is an NSEvent API gated by ACCESSIBILITY - macOS auto-lists the app there on the arm attempt, and Input Monitoring never lists it (that list is for CGEventTap/IOHID APIs, which buddy does not use). Music verbs need per-app Automation. The key monitor must be re-armed when the grant arrives mid-run; a monitor armed without the grant stays dead forever.
 
 Panel re-checks live (poll or on-focus), so a revoked permission shows up without restart. First-run wizard is this same panel in sequential mode with buddy narrating in character.
 
