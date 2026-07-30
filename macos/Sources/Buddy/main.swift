@@ -12,11 +12,11 @@ if let idx = CommandLine.arguments.firstIndex(of: "--render") {
     exit(SpriteLint.render(to: dir) ? 0 : 1)
 }
 
-// `Buddy --perm-check`: report Input Monitoring as a FRESH process, in case
-// the in-process preflight ever serves a stale launch-time answer the way
-// AXIsProcessTrusted does. Exit 0 = granted.
+// `Buddy --perm-check`: report Accessibility (which gates the global key
+// monitor) as a FRESH process. The in-process API only repeats its
+// launch-time answer, so live status must come from a new process.
 if CommandLine.arguments.contains("--perm-check") {
-    exit(CGPreflightListenEventAccess() ? 0 : 1)
+    exit(AXIsProcessTrusted() ? 0 : 1)
 }
 
 if CommandLine.arguments.contains("--check") {

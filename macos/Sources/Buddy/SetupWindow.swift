@@ -20,7 +20,7 @@ final class SetupWindow: NSObject {
     private var claudeChecked = false
     // Live Privacy-list state lives with the controller (event-driven via
     // com.apple.accessibility.api); the panel just reads it.
-    var inputMonitoringProvider: (() -> Bool)?
+    var keyAccessProvider: (() -> Bool)?
 
     private final class Row {
         let dot = NSTextField(labelWithString: "●")
@@ -83,31 +83,21 @@ final class SetupWindow: NSObject {
         stack.spacing = 14
         stack.edgeInsets = NSEdgeInsets(top: 20, left: 20, bottom: 20, right: 20)
 
-        add(to: stack, Row(title: "Input monitoring", tag: "recommended") { [weak self] row in
-            let live = self?.inputMonitoringProvider?() ?? CGPreflightListenEventAccess()
+        add(to: stack, Row(title: "Accessibility", tag: "recommended") { [weak self] row in
+            let live = self?.keyAccessProvider?() ?? AXIsProcessTrusted()
             if live {
                 row.set(true, "granted - typing sense and the double-Esc panic gesture work")
             } else {
                 row.set(false, "not granted - buddy cannot see the keyboard: no typing awareness, no "
-                        + "double-Esc panic (menu Freeze/Wake still works). Fix opens System Settings; "
-                        + "macOS may ask to relaunch buddy",
+                        + "double-Esc panic (menu Freeze/Wake still works). Fix adds Buddy to the list; "
+                        + "flip its switch on",
                         button: "Fix...") {
-                    // Registers THIS binary in the Input Monitoring list, then
-                    // opens the pane for the switch. The request call alone
-                    // does not reliably register unbundled binaries - a real
-                    // (failed) listen attempt via an event tap is what makes
-                    // macOS add the entry.
-                    CGRequestListenEventAccess()
-                    if let tap = CGEvent.tapCreate(
-                        tap: .cgSessionEventTap, place: .headInsertEventTap,
-                        options: .listenOnly,
-                        eventsOfInterest: CGEventMask(1 << CGEventType.keyDown.rawValue),
-                        callback: { _, _, e, _ in Unmanaged.passUnretained(e) },
-                        userInfo: nil) {
-                        CFMachPortInvalidate(tap)
-                    }
+                    // The prompt call registers THIS binary in the
+                    // Accessibility list, then the pane opens for the switch.
+                    let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+                    AXIsProcessTrustedWithOptions(opts)
                     NSWorkspace.shared.open(URL(string:
-                        "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")!)
+                        "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
                 }
             }
         })

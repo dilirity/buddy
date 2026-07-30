@@ -102,7 +102,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         coordination = Coordination(deviceId: "mac", rank: 1, owner: true)
         setup.peersProvider = { [weak self] in self?.coordination.knownPeers ?? [] }
         setup.musicRequest = { [weak self] in self?.music.requestAccess() }
-        setup.inputMonitoringProvider = { [weak self] in self?.inputMonitoringGranted ?? CGPreflightListenEventAccess() }
+        setup.keyAccessProvider = { [weak self] in self?.keyAccessGranted ?? AXIsProcessTrusted() }
         coordination.onDepart = { [weak self] in
             guard let self else { return }
             self.stopMoving()
@@ -770,12 +770,13 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         return true
     }
 
-    // Live Input Monitoring state - the permission that actually gates the
-    // global key monitor (typing sense, double-Esc panic). Cursor tricks need
-    // no macOS permission at all; they are governed by buddy's own settings.
-    // TCC broadcasts com.apple.accessibility.api on grant changes; re-check
-    // on it (debounced - it fires in bursts, for any app's change).
-    private(set) var inputMonitoringGranted = CGPreflightListenEventAccess()
+    // Live Accessibility state - the permission that gates the global key
+    // monitor (typing sense, double-Esc panic; NSEvent global key monitors
+    // are accessibility-trust APIs). Cursor tricks need no macOS permission;
+    // they are governed by buddy's own settings. TCC broadcasts
+    // com.apple.accessibility.api on grant changes; re-check on it
+    // (debounced - it fires in bursts, for any app's change).
+    private(set) var keyAccessGranted = AXIsProcessTrusted()
     private var permDebounce: Timer?
 
     func watchPermissionChanges() {
@@ -801,10 +802,10 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
             p.waitUntilExit()
             let ok = p.terminationStatus == 0
             DispatchQueue.main.async {
-                guard let self, self.inputMonitoringGranted != ok else { return }
-                self.inputMonitoringGranted = ok
-                buddyLog("input monitoring changed live: \(ok)")
-                buddyActivity("permChanged", ["inputMonitoring": ok])
+                guard let self, self.keyAccessGranted != ok else { return }
+                self.keyAccessGranted = ok
+                buddyLog("accessibility changed live: \(ok)")
+                buddyActivity("permChanged", ["accessibility": ok])
                 if ok { self.senses.armKeyMonitor() }
                 self.say(ok ? "ooh I can feel you typing now" : "keyboard's gone dark. no more panic gesture",
                          seconds: 6)
@@ -826,7 +827,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         let old = (try? String(contentsOf: url, encoding: .utf8))?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         try? stamp.data(using: .utf8)?.write(to: url)
-        guard let old, old != stamp, !CGPreflightListenEventAccess() else { return }
+        guard let old, old != stamp, !AXIsProcessTrusted() else { return }
         commonTimer(5, repeats: false) { [weak self] _ in
             guard let self else { return }
             self.say("new body! macOS wiped my permissions though. Setup has the fix", seconds: 8)
