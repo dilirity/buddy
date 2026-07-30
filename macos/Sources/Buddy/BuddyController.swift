@@ -31,7 +31,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
     private var chasing = false
     private var chaseDeadline = Date()
     private var chaseOffset = CGPoint.zero
-    // approach = live-track the cursor but arrive beside it (emits "arrived");
+    // approach = live-track the cursor but arrive beside it (emits "arrived"/"gaveUp");
     // chase = catch it exactly (emits "caught"/"gaveUp").
     private var approachMode = false
 
@@ -334,7 +334,8 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
                 let wasApproach = approachMode
                 stopMoving()
                 // A best-effort visit that ran out of time still "arrives";
-                // only a failed catch is a gaveUp.
+                // only a failed catch is a gaveUp. Acts that care whether the
+                // visit truly landed must distance-check on arrival.
                 brain.emit(wasApproach ? "arrived" : "gaveUp")
                 return
             }

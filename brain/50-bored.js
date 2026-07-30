@@ -28,9 +28,16 @@ registerAct("clingy", {
       : { anim: "excited", line: "clingyArrive", secs: 3, prop: "heart", ms: 2600 };
     runAct([
       { anim: "walk", approach: { speed: 160, dx: side, dy: 0 }, until: "arrived" },
-      arrive,
-      { anim: "idle" },
-    ]);
+    ], () => {
+      // "arrived" also fires when the visit timed out - only celebrate the
+      // cuddle if buddy actually made it next to the cursor.
+      const p = buddy.pos();
+      const m = buddy.cursor.pos();
+      const close = Math.hypot(p.x - m.x, p.y - m.y) < 180;
+      runAct(close
+        ? [arrive, { anim: "idle" }]
+        : [{ anim: "idle", line: "clingyMiss", secs: 3, ms: 2600 }, { anim: "idle" }]);
+    });
   },
 });
 
