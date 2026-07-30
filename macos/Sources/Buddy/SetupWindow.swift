@@ -90,6 +90,14 @@ final class SetupWindow: NSObject {
             }
         })
 
+        add(to: stack, Row(title: "Music control", tag: "optional") { row in
+            // No reliable read of the Automation grant without prompting;
+            // explain the prompt instead of pretending to know.
+            row.set(nil, "buddy DJs via Music/Spotify. macOS asks \"Buddy would like to control...\" the first time"
+                    + " after every buddy update (updates reset permission grants) - approve once and it sticks"
+                    + " until the next update. Evolution never resets it.")
+        })
+
         add(to: stack, Row(title: "Claude Code", tag: "optional") { [weak self] row in
             guard let self else { return }
             self.checkClaudeOnce()

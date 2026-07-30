@@ -11,6 +11,7 @@ v1 audience: developer colleagues willing to run one terminal command and follow
 - iOS. Dropped. Free provisioning expires sideloaded apps every 7 days; paid account plus TestFlight is a separate project.
 - Codex or other AI engines. Claude Code only. Engine abstraction (mutator invocation plus Think stream-json protocol) is a later adapter layer.
 - Signed/notarized mac binaries, dmg downloads, installers. Later, if ever, and it costs $99/yr.
+- Code signing of ANY kind, including self-signed certificates (decided: too much hidden ceremony for users). Consequence: macOS keys permission grants (Accessibility, Automation) to the binary's hash, so every rebuild/update voids them and macOS re-prompts. Handled in UI, not by signing: the Setup panel explains the re-grant steps, and the app detects a binary change on launch and points the user at Setup when grants were lost.
 - Non-developer install path.
 - Nothing Glyph production key. Test key plus documented adb debug flag is fine for sideloaders.
 
@@ -47,6 +48,7 @@ One window, reachable from the status bar menu at any time (not just first run).
 | Row | Detection | Fix action | Without it |
 |---|---|---|---|
 | Accessibility | `AXIsProcessTrusted()` | Deep-link to System Settings privacy pane | No cursor grab/warp, no typing sense |
+| Automation (Music/Spotify) | best effort; informational | Explain the one-time per-update prompt | DJ acts silently fail |
 | Claude Code | `which claude` + `claude --version` | Link to install docs | Small brain mode: no think, no chat, no evolution |
 | Hooks | Parse ~/.claude/settings.json for buddy marker | Opens WS4 consent flow | No reactions to Claude sessions |
 | Evolution service | launchd job loaded? next run time | Toggle: load/unload the agent | Buddy never changes |
@@ -54,6 +56,8 @@ One window, reachable from the status bar menu at any time (not just first run).
 | Device pairing | known peers list | Opens pairing instructions | One body |
 
 Panel re-checks live (poll or on-focus), so a revoked permission shows up without restart. First-run wizard is this same panel in sequential mode with buddy narrating in character.
+
+Post-update grant loss (no-signing consequence): on launch the app compares the running binary against a stored stamp; if the binary changed and Accessibility is no longer granted, buddy says so out loud and opens the Setup panel instead of silently losing abilities. Evolution never triggers this - it edits brain JS only, never the binary.
 
 ### WS3: Claude detection, spend consent, evolution schedule
 

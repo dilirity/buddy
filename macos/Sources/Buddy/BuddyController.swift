@@ -143,6 +143,8 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
 
         play("idle")
 
+        checkUpdateGrantLoss()
+
         commonTimer(3600, repeats: true) { [weak self] _ in
             self?.checkEvolutionStaleness()
         }
@@ -763,6 +765,28 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         guard allowed else { return false }
         music.next()
         return true
+    }
+
+    // Buddy is deliberately unsigned, so macOS keys permission grants to the
+    // binary's hash: every update voids Accessibility/Automation. Notice the
+    // new body and point at Setup instead of silently losing cursor powers.
+    private func checkUpdateGrantLoss() {
+        let fm = FileManager.default
+        let exe = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()
+        guard let attrs = try? fm.attributesOfItem(atPath: exe.path),
+              let size = attrs[.size] as? NSNumber,
+              let mtime = attrs[.modificationDate] as? Date else { return }
+        let stamp = "\(size)-\(Int(mtime.timeIntervalSince1970))"
+        let url = BuddyPaths.home.appendingPathComponent("binary-stamp")
+        let old = (try? String(contentsOf: url, encoding: .utf8))?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        try? stamp.data(using: .utf8)?.write(to: url)
+        guard let old, old != stamp, !AXIsProcessTrusted() else { return }
+        commonTimer(5, repeats: false) { [weak self] _ in
+            guard let self else { return }
+            self.say("new body! macOS wiped my permissions though. Setup has the fix", seconds: 8)
+            self.setup.show()
+        }
     }
 
     // MARK: - Status item
