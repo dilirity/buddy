@@ -20,6 +20,8 @@ final class SetupWindow: NSObject {
     var keyAccessProvider: (() -> Bool)?
     // Fired after spend.json changes so warm think sessions restart or shut down.
     var onSpendChanged: (() -> Void)?
+    // Opens the persona interview (first-run window, reusable as editor).
+    var onEditPersona: (() -> Void)?
 
     private final class Row {
         let dot = NSTextField(labelWithString: "●")
@@ -219,6 +221,13 @@ final class SetupWindow: NSObject {
                 s.evolutionModel = model
                 s.save()
             }
+        })
+
+        add(to: stack, Row(title: "Persona", tag: "optional") { [weak self] row in
+            let name = OnboardingWindow.userNameForDisplay()
+            row.set(nil, name == nil ? "buddy doesn't know your name yet"
+                                     : "buddy calls you \(name!)",
+                    button: "Edit...") { self?.onEditPersona?() }
         })
 
         add(to: stack, Row(title: "Device pairing", tag: "optional") { [weak self] row in

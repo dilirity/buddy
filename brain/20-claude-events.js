@@ -17,7 +17,7 @@ buddy.on("claude:Stop", () => {
   setMood("excited", "excited");
   const c = buddy.traits.get("chattiness");
   if (chance(0.25 * c)) {
-    buddy.think("Claude Code just finished a task for Pete. One short cheeky congrats or comment.", (t) => {
+    buddy.think("Claude Code just finished a task for " + userName() + ". One short cheeky congrats or comment.", (t) => {
       if (t) buddy.say(t, 5);
     });
   } else if (chance(0.6 * c)) {

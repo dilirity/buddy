@@ -100,15 +100,13 @@ BUDDY_SELF guard (so buddy's own claude sessions do not fire the user's hooks) i
 
 Everything Pete-flavored lives in brain data files; the shipped defaults must become neutral, with a first-run interview filling them in.
 
-Collected at first run (buddy asks in character; skippable, editable later from the panel):
+Collected at first run via a small in-character form (skippable, editable later from Setup > Persona; existing installs get an `onboarded` marker from setup.sh and never see it):
 
-- What to call the user.
-- Shows/movies/media for references (replaces Friends/Archer/Justified/Succession pack).
-- Tone preferences (snark level maps to initial trait values).
+- What to call the user (stored as `userName` in memory.json; brain JS reads it via the `userName()` helper, "boss" fallback).
+- Shows/games/movies for references (stored as `interests`; written into persona.md so the nightly mutator grows quips.json references from it - the starter references list ships empty and the reference act self-gates on empty).
+- Menace slider (seeds the mischief trait, clamped by bounds as always).
 
-Written to: persona.md, references data file, initial traits.json values. If chat/think is enabled, buddy can run its existing reference-pull tool against the user's list to build the references file; without think, references section stays empty and reference acts self-gate on empty lines() (verify this gating exists; add if not).
-
-Shipped brain defaults audit: sweep brain/*.js and data files for Pete-specific lines, names, and topics; move to interview-generated data or delete.
+As-built: persona.md identity paragraph is rewritten on save, the output-rules paragraph is preserved. Starter brain audit done - no Pete-specific names, shows, or feedback items ship; mutator/prompt.md speaks of "the human".
 
 ### WS6: Android as optional extra, glyph gating
 

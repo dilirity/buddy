@@ -43,7 +43,8 @@ globalThis.handleChatMessage = function (text, source) {
   }
 
   const log = buddy.memory.get("chatLog") || [];
-  const recent = log.slice(-4).map((x) => "pete: " + x.q + "\nbuddy: " + x.a).join("\n");
+  const who = userName();
+  const recent = log.slice(-4).map((x) => who + ": " + x.q + "\nbuddy: " + x.a).join("\n");
   const grudges = buddy.memory.get("grudges") || 0;
   const traits = buddy.traits.all();
   const tests = buddy.data("tests.json") || [];
@@ -51,18 +52,18 @@ globalThis.handleChatMessage = function (text, source) {
     (recent ? "recent conversation:\n" + recent + "\n\n" : "") +
     "your personality sliders right now: " + JSON.stringify(traits) +
     ". your mood: " + state.mood + ".\n" +
-    (grudges > 0 ? "(you hold " + grudges + " grudges against pete for lowering your traits)\n" : "") +
+    (grudges > 0 ? "(you hold " + grudges + " grudges against " + who + " for lowering your traits)\n" : "") +
     "things you can DO on command (id - what it is): " +
     tests.map((x) => x.id + " - " + x.title).join("; ") + "\n" +
     (phone
-      ? 'pete texted you FROM HIS PHONE: "' + text + '" (he is away from the mac; your reply arrives as a notification)\n\n'
-      : 'pete just said to you: "' + text + '"\n\n') +
+      ? who + ' texted you FROM THEIR PHONE: "' + text + '" (they are away from the mac; your reply arrives as a notification)\n\n'
+      : who + ' just said to you: "' + text + '"\n\n') +
     "Ignore your usual output format. Reply ONLY with a JSON object, no other text:\n" +
     '{"action": "chat"|"feedback"|"setting"|"command", "reply": "what buddy says, in character, 1-2 short lines", "feedback": "if action=feedback: the note to file", "trait": "if action=setting: one of ' +
     Object.keys(traits).join("|") + '", "value": 0.0, "command": "if action=command: one id from the list above"}\n' +
-    "action=command when pete tells you to DO something right now (hide, steal the cursor, play music, visit his phone...) and one of your listed abilities fits.\n" +
-    "action=feedback when pete asks future-you to change, add, or build something.\n" +
-    "action=setting when pete wants to adjust how you act RIGHT NOW (be quieter, calmer, more chaotic) - pick the trait and a 0..1 value honoring the request given current values.\n" +
+    "action=command when " + who + " tells you to DO something right now (hide, steal the cursor, play music, visit their phone...) and one of your listed abilities fits.\n" +
+    "action=feedback when " + who + " asks future-you to change, add, or build something.\n" +
+    "action=setting when " + who + " wants to adjust how you act RIGHT NOW (be quieter, calmer, more chaotic) - pick the trait and a 0..1 value honoring the request given current values.\n" +
     "action=chat for everything else, including commands you have no ability for (be sassy about those).";
 
   state.busy = true;

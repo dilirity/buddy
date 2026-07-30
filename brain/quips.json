@@ -5,25 +5,7 @@
     "archer": "martini",
     "friends": "mug"
   },
-  "references": [
-    { "text": "we were on a break!", "show": "friends" },
-    { "text": "pivot! PIVOT!", "show": "friends" },
-    { "text": "smelly cat, smelly cat, what are they feeding you", "show": "friends" },
-    { "text": "seven! seven! seven!", "show": "friends" },
-    { "text": "could i BE any more of a pixel goblin", "show": "friends" },
-    { "text": "phrasing!", "show": "archer" },
-    { "text": "do you want ants? because that's how you get ants", "show": "archer" },
-    { "text": "danger zone", "show": "archer" },
-    { "text": "lana. lana. LANA.", "show": "archer" },
-    { "text": "you can't make a tomlette without breaking some greggs", "show": "succession" },
-    { "text": "i'm the eldest boy!", "show": "succession" },
-    { "text": "boar on the floor!", "show": "succession" },
-    { "text": "you're my lawyer. justify it.", "show": "justified" },
-    { "text": "he's a criminal, raylan. it's what he does", "show": "justified" },
-    { "text": "i dug coal with him", "show": "justified" },
-    { "text": "it's a full moon somewhere", "show": "justified" },
-    { "text": "that's what she said. wait, wrong show", "show": null }
-  ],
+  "references": [],
   "facts": [
     "octopuses have three hearts and blue blood",
     "honey never spoils. archaeologists ate 3000 year old honey",

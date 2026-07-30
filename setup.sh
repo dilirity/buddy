@@ -9,6 +9,9 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 BUDDY_HOME="${BUDDY_HOME:-$HOME/.buddy}"
+# Captured before any install step: does a brain already exist here?
+EXISTING_INSTALL=0
+[ -d "$BUDDY_HOME/brain/.git" ] && EXISTING_INSTALL=1
 
 echo "== checking dependencies =="
 if ! command -v git >/dev/null 2>&1; then
@@ -75,6 +78,12 @@ if [ ! -f "$BUDDY_HOME/phone.json" ]; then
   printf '{"topic": "buddy-%s"}\n' "$(openssl rand -hex 10)" > "$BUDDY_HOME/phone.json"
   echo "generated ntfy topic"
 fi
+# Existing installs already have a persona - never show them the first-run
+# interview. (Fresh installs get it on first launch.)
+if [ "$EXISTING_INSTALL" = 1 ] && [ ! -f "$BUDDY_HOME/onboarded" ]; then
+  touch "$BUDDY_HOME/onboarded"
+fi
+
 # Spend config. Fresh installs spend nothing until consented in the app's
 # Setup panel; an install that predates spend.json was built when chat and
 # nightly evolution were always-on, so keep that behavior for it.

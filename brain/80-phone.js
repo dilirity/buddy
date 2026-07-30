@@ -1,4 +1,4 @@
-// Buddy travels to Pete's phone (ntfy push). The shell enforces a 10-minute
+// Buddy travels to the human's phone (ntfy push). The shell enforces a 10-minute
 // minimum gap plus the disruption budget - use sparingly, make it count.
 
 // The trip: say bye, walk to a screen edge, fade out, buzz the phone,
@@ -46,11 +46,11 @@ buddy.on("travelArrived", () => {
   buddy.after(3000, () => buddy.play("idle"));
 });
 
-// Pete texting from his phone: same triage as desktop chat (75-chat.js),
+// The human texting from their phone: same triage as desktop chat (75-chat.js),
 // delivery via notification. One relationship, two screens.
 buddy.on("phoneChat", (e) => handleChatMessage(e.text, "phone"));
 
-// When Pete leaves for a while, buddy occasionally texts the void.
+// When the human leaves for a while, buddy occasionally texts the void.
 buddy.on("idle", (e) => {
   if (state.busy || state.evolving) return;
   if (!chance(buddy.traits.get("clinginess") * 0.3)) return;

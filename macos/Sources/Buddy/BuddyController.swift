@@ -14,6 +14,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
     private var invariants: Invariants { Invariants.load() }
     private let settings = SettingsWindow()
     private let setup = SetupWindow()
+    private let onboarding = OnboardingWindow()
     let music = MusicBridge()
     private let talk = TalkPanel()
     private var statusItem: NSStatusItem!
@@ -103,6 +104,8 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         setup.peersProvider = { [weak self] in self?.coordination.knownPeers ?? [] }
         setup.keyAccessProvider = { [weak self] in self?.keyAccessGranted ?? AXIsProcessTrusted() }
         setup.onSpendChanged = { [weak self] in self?.brain.spendConfigChanged() }
+        onboarding.onSaved = { [weak self] in self?.brain.reload() }
+        setup.onEditPersona = { [weak self] in self?.onboarding.show() }
         coordination.onDepart = { [weak self] in
             guard let self else { return }
             self.stopMoving()
@@ -147,6 +150,15 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
 
         checkUpdateGrantLoss()
         watchPermissionChanges()
+
+        // Fresh install: buddy introduces itself once (existing installs get
+        // the marker from setup.sh and never see this).
+        if OnboardingWindow.needed {
+            commonTimer(2, repeats: false) { [weak self] _ in
+                self?.say("oh. hi. you're new. or i am", seconds: 5)
+                self?.onboarding.show()
+            }
+        }
 
         commonTimer(3600, repeats: true) { [weak self] _ in
             self?.checkEvolutionStaleness()
