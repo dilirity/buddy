@@ -381,6 +381,16 @@ final class Brain {
         }
         set("userConfig", userConfigJS)
 
+        // The one fenced crossing of the two-pen rule: the brain may record a
+        // declared fact, but only one the human just explicitly confirmed
+        // (chat "yes" to a promotion question) - contract in mutator/prompt.md.
+        let configSetJS: @convention(block) (String, JSValue) -> Void = { key, value in
+            let obj = (value.isNull || value.isUndefined) ? nil : value.toObject()
+            UserConfig.set(key, obj)
+            buddyActivity("configSet", ["key": key])
+        }
+        set("configSet", configSetJS)
+
         let thinkJS: @convention(block) (String, JSValue) -> Void = { [weak self] prompt, cb in
             guard let self else { return }
             let gen = self.generation
