@@ -58,8 +58,10 @@ final class SettingsWindow: NSObject {
         return item
     }
 
-    // All panes share one width so switching tabs never resizes the window;
-    // matches the System pane's natural measure (430 detail + insets).
+    // One measure for wrapped text everywhere; the window width itself comes
+    // from the widest pane (System: 430 detail + insets) and the tab view
+    // stretches every pane to fill it - no fixed pane width, or the stack
+    // pins left and the slack collects as a right-side gap.
     static let paneWidth: CGFloat = 470
 
     private func pane() -> NSStackView {
@@ -68,7 +70,6 @@ final class SettingsWindow: NSObject {
         stack.alignment = .leading
         stack.spacing = 10
         stack.edgeInsets = NSEdgeInsets(top: 20, left: 20, bottom: 20, right: 20)
-        stack.widthAnchor.constraint(equalToConstant: Self.paneWidth).isActive = true
         return stack
     }
 
