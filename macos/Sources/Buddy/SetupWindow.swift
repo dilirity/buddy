@@ -92,10 +92,20 @@ final class SetupWindow: NSObject {
                         + "double-Esc panic (menu Freeze/Wake still works). Fix opens System Settings; "
                         + "macOS may ask to relaunch buddy",
                         button: "Fix...") {
-                    // Registers THIS binary in the Input Monitoring list (a
-                    // stale entry from a previous build toggles the wrong
-                    // fingerprint), then opens the pane for the switch.
+                    // Registers THIS binary in the Input Monitoring list, then
+                    // opens the pane for the switch. The request call alone
+                    // does not reliably register unbundled binaries - a real
+                    // (failed) listen attempt via an event tap is what makes
+                    // macOS add the entry.
                     CGRequestListenEventAccess()
+                    if let tap = CGEvent.tapCreate(
+                        tap: .cgSessionEventTap, place: .headInsertEventTap,
+                        options: .listenOnly,
+                        eventsOfInterest: CGEventMask(1 << CGEventType.keyDown.rawValue),
+                        callback: { _, _, e, _ in Unmanaged.passUnretained(e) },
+                        userInfo: nil) {
+                        CFMachPortInvalidate(tap)
+                    }
                     NSWorkspace.shared.open(URL(string:
                         "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")!)
                 }
