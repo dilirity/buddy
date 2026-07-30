@@ -65,8 +65,12 @@ cp mutator/run.sh mutator/prompt*.md "$BUDDY_HOME/mutator/"
 chmod +x "$BUDDY_HOME/mutator/run.sh"
 
 # Brain gets its own git history so the mutator can commit (and revert) itself.
+# Repo-local identity: a fresh mac often has no global user.email, and without
+# one every commit here (this one, nightly drift, feedback) dies.
 if [ ! -d "$BUDDY_HOME/brain/.git" ]; then
   git -C "$BUDDY_HOME/brain" init -q
+  git -C "$BUDDY_HOME/brain" config user.name buddy
+  git -C "$BUDDY_HOME/brain" config user.email buddy@localhost
   git -C "$BUDDY_HOME/brain" add -A
   git -C "$BUDDY_HOME/brain" commit -qm "buddy is born"
   echo "initialized brain git repo"
@@ -91,8 +95,10 @@ fi
 
 # Spend config. Fresh installs spend nothing until consented in the app's
 # Setup panel; an install that predates spend.json was built when chat and
-# nightly evolution were always-on, so keep that behavior for it.
-if [ ! -f "$BUDDY_HOME/spend.json" ]; then
+# nightly evolution were always-on, so keep that behavior for it. The
+# launchctl probe is user-global, so only the real install may trust it -
+# a sandbox (BUDDY_HOME override) is always fresh.
+if [ ! -f "$BUDDY_HOME/spend.json" ] && [ "$BUDDY_HOME" = "$HOME/.buddy" ]; then
   if [ -f "$BUDDY_HOME/coordination-mac.json" ] || launchctl list com.buddy.mutator >/dev/null 2>&1; then
     cat > "$BUDDY_HOME/spend.json" <<'JSON'
 {
@@ -153,6 +159,8 @@ chmod +x "$APP/MacOS/Buddy"
 echo "installed ~/Applications/Buddy.app"
 
 # Autostart at login. RunAtLoad only - quitting from the menu stays quit.
+# A fresh account has no LaunchAgents dir yet.
+mkdir -p "$HOME/Library/LaunchAgents"
 cat > "$HOME/Library/LaunchAgents/com.buddy.app.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

@@ -488,6 +488,10 @@ final class SetupWindow: NSObject {
             </plist>
             """
             _ = SetupWindow.run("/bin/launchctl", ["unload", mutatorPlist.path])
+            // A fresh account has no LaunchAgents dir; a silent write failure
+            // here leaves the panel claiming a schedule launchd never got.
+            try? FileManager.default.createDirectory(at: mutatorPlist.deletingLastPathComponent(),
+                                                     withIntermediateDirectories: true)
             try? plist.data(using: .utf8)?.write(to: mutatorPlist)
             _ = SetupWindow.run("/bin/launchctl", ["load", mutatorPlist.path])
             buddyLog("setup: evolution schedule = \(schedule)")
