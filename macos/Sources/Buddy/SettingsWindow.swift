@@ -37,6 +37,15 @@ final class SettingsWindow: NSObject {
         }
         stack.addArrangedSubview(note("Sliders move within each trait's min/max drift bounds (traits.json)."))
 
+        let config = loadConfig()
+        if !config.isEmpty {
+            stack.addArrangedSubview(header("Your World"))
+            for (key, entry) in config {
+                stack.addArrangedSubview(configRow(key: key, entry: entry))
+            }
+            stack.addArrangedSubview(note("Facts buddy's behaviors rely on (brain/config.json). Evolutions add new ones; they show up here on their own."))
+        }
+
         stack.addArrangedSubview(header("Limits"))
         let inv = Invariants.load()
         stack.addArrangedSubview(sliderRow(
@@ -107,6 +116,143 @@ final class SettingsWindow: NSObject {
         } else if id.hasPrefix("inv:") {
             saveInvariant(String(id.dropFirst("inv:".count)), value: Int(value.rounded()))
         }
+    }
+
+    // MARK: - Configurables (brain/config.json)
+    // Entries are self-describing ({value, type, label}) so evolutions can add
+    // new configurables and have them editable here without an app rebuild.
+
+    private var configURL: URL { BuddyPaths.brain.appendingPathComponent("config.json") }
+
+    private func loadConfig() -> [(String, [String: Any])] {
+        guard let data = try? Data(contentsOf: configURL),
+              let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return [] }
+        return json.compactMap { key, value in
+            (value as? [String: Any]).map { (key, $0) }
+        }.sorted { $0.0 < $1.0 }
+    }
+
+    private func configRow(key: String, entry: [String: Any]) -> NSStackView {
+        let type = entry["type"] as? String ?? "text"
+        let row = NSStackView()
+        row.orientation = .horizontal
+        row.spacing = 8
+
+        let name = NSTextField(labelWithString: entry["label"] as? String ?? key)
+        name.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+        name.widthAnchor.constraint(equalToConstant: 160).isActive = true
+        row.addArrangedSubview(name)
+
+        let id = NSUserInterfaceItemIdentifier("cfg:\(key)")
+        switch type {
+        case "hour":
+            let v = (entry["value"] as? NSNumber)?.doubleValue ?? 0
+            let slider = NSSlider(value: v, minValue: 0, maxValue: 24,
+                                  target: self, action: #selector(configHourChanged(_:)))
+            slider.identifier = id
+            slider.isContinuous = false
+            slider.widthAnchor.constraint(equalToConstant: 200).isActive = true
+            row.addArrangedSubview(slider)
+            let val = NSTextField(labelWithString: Self.hourText(v))
+            val.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+            val.widthAnchor.constraint(equalToConstant: 44).isActive = true
+            valueLabels["cfg:\(key)"] = val
+            row.addArrangedSubview(val)
+        case "bool":
+            let check = NSButton(checkboxWithTitle: "",
+                                 target: self, action: #selector(configBoolChanged(_:)))
+            check.identifier = id
+            check.state = (entry["value"] as? Bool ?? false) ? .on : .off
+            row.addArrangedSubview(check)
+        case "weekday":
+            let popup = NSPopUpButton(frame: .zero, pullsDown: false)
+            popup.identifier = id
+            popup.addItems(withTitles: Self.weekdays)
+            popup.selectItem(withTitle: entry["value"] as? String ?? "monday")
+            popup.target = self
+            popup.action = #selector(configWeekdayChanged(_:))
+            row.addArrangedSubview(popup)
+        case "date":
+            let picker = NSDatePicker()
+            picker.identifier = id
+            picker.datePickerStyle = .textFieldAndStepper
+            picker.datePickerElements = [.yearMonthDay]
+            picker.dateValue = Self.dateFormatter.date(from: entry["value"] as? String ?? "") ?? Date()
+            picker.target = self
+            picker.action = #selector(configDateChanged(_:))
+            row.addArrangedSubview(picker)
+        default: // number, text
+            let field = NSTextField(string: "\(entry["value"] ?? "")")
+            field.identifier = id
+            field.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+            field.widthAnchor.constraint(equalToConstant: 200).isActive = true
+            field.target = self
+            field.action = #selector(configTextChanged(_:))
+            row.addArrangedSubview(field)
+        }
+        return row
+    }
+
+    private static let weekdays = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+
+    private static let dateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
+
+    private static func hourText(_ v: Double) -> String {
+        String(format: "%d:%02d", Int(v), Int((v - Double(Int(v))) * 60))
+    }
+
+    @objc private func configHourChanged(_ sender: NSSlider) {
+        guard let key = configKey(sender) else { return }
+        // Snap to 15-minute steps - finer than that is false precision for routines.
+        let v = (sender.doubleValue * 4).rounded() / 4
+        sender.doubleValue = v
+        valueLabels["cfg:\(key)"]?.stringValue = Self.hourText(v)
+        saveConfigValue(key, value: v)
+    }
+
+    @objc private func configBoolChanged(_ sender: NSButton) {
+        guard let key = configKey(sender) else { return }
+        saveConfigValue(key, value: sender.state == .on)
+    }
+
+    @objc private func configWeekdayChanged(_ sender: NSPopUpButton) {
+        guard let key = configKey(sender), let title = sender.titleOfSelectedItem else { return }
+        saveConfigValue(key, value: title)
+    }
+
+    @objc private func configDateChanged(_ sender: NSDatePicker) {
+        guard let key = configKey(sender) else { return }
+        saveConfigValue(key, value: Self.dateFormatter.string(from: sender.dateValue))
+    }
+
+    @objc private func configTextChanged(_ sender: NSTextField) {
+        guard let key = configKey(sender) else { return }
+        let text = sender.stringValue
+        if let data = try? Data(contentsOf: configURL),
+           let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+           (json[key] as? [String: Any])?["type"] as? String == "number" {
+            saveConfigValue(key, value: Double(text) ?? 0)
+        } else {
+            saveConfigValue(key, value: text)
+        }
+    }
+
+    private func configKey(_ control: NSControl) -> String? {
+        guard let id = control.identifier?.rawValue, id.hasPrefix("cfg:") else { return nil }
+        return String(id.dropFirst("cfg:".count))
+    }
+
+    private func saveConfigValue(_ key: String, value: Any) {
+        guard let data = try? Data(contentsOf: configURL),
+              var json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              var entry = json[key] as? [String: Any] else { return }
+        entry["value"] = value
+        json[key] = entry
+        write(json, to: configURL)
     }
 
     private func saveTrait(_ name: String, value: Double) {
