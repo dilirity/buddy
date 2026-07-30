@@ -35,7 +35,7 @@ enum Traits {
     }
 
     // Write one trait's value, clamped to its bounds. The bounds themselves
-    // are only ever edited by Pete.
+    // are only ever edited by the human.
     static func setValue(_ name: String, to value: Double) -> Bool {
         guard let data = try? Data(contentsOf: BuddyPaths.traits),
               var json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],

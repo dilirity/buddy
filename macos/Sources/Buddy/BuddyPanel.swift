@@ -36,7 +36,7 @@ final class SpriteView: NSView {
     var dragEnabled = true
     private var dragging = false
     private var downPointInWindow: NSPoint = .zero
-    // Carry mode: while Pete drags, the WINDOW stays put (expanded fullscreen)
+    // Carry mode: while the human drags, the WINDOW stays put (expanded fullscreen)
     // and only the sprite layer moves - macOS window tiling can't engage with
     // a window that never moves during the drag.
     private var carrying = false

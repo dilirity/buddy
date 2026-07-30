@@ -60,7 +60,10 @@ globalThis.cfg = (name, fallback) => {
 globalThis.lines = (key) => {
   const l = buddy.data("lines.json");
   const pool = l && l[key];
-  return pool && pool.length ? pickFresh(pool) : null;
+  if (!pool || !pool.length) return null;
+  // {name} in any pool resolves to the configured name - never bake a real
+  // name into dialogue data.
+  return pickFresh(pool).replace(/\{name\}/g, userName());
 };
 
 globalThis.sayLine = (key, secs, prop) => {

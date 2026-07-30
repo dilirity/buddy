@@ -78,7 +78,7 @@ Every frame, TCP or UDP:
 - Silence is interpreted by WHO went silent, because sleep is announced (see
   handoff) and phones walk out of houses:
   - **Phone silent**: never a death. Assume it left the wifi or dozed - buddy
-    is out with Pete if the phone owned it. No election, no resurrection.
+    is out with the human if the phone owned it. No election, no resurrection.
     Recovery attempt: ntfy `poke`; otherwise wait for it to come home.
   - **Non-portable device (mac) silent**: crash. If it owned buddy, survivors
     elect (below). Its announced sleep would have handed buddy off first.

@@ -28,19 +28,19 @@ call, so re-registering inside the handler works.
 | `brainLoaded` | `{}` | after every (re)load |
 | `brainDamaged` | `{errors}` | load finished with JS errors |
 | `brainChanged` | `{}` | brain dir edited outside an evolution |
-| `chat` | `{text}` | Pete typed in the talk box |
-| `phoneChat` | `{text}` | Pete texted from the phone (ntfy inbox) |
+| `chat` | `{text}` | The human typed in the talk box |
+| `phoneChat` | `{text}` | The human texted from the phone (ntfy inbox) |
 | `arrived` | `{}` | moveTo/approach reached its target |
 | `caught` | `{}` | chase reached the cursor |
 | `poked` | `{}` | click on buddy |
-| `dragStart` | `{}` | Pete picked buddy up |
-| `dragEnd` | `{x, y}` | Pete dropped buddy |
+| `dragStart` | `{}` | The human picked buddy up |
+| `dragEnd` | `{x, y}` | The human dropped buddy |
 | `unfrozen` | `{}` | freeze ended |
-| `idle` | `{seconds}` | Pete went idle |
-| `active` | `{}` | Pete came back |
+| `idle` | `{seconds}` | The human went idle |
+| `active` | `{}` | The human came back |
 | `typing` | `{keys}` | keystroke burst (needs input-monitoring permission) |
 | `appChanged` | `{name}` | frontmost app switched |
-| `configChanged` | `{trait, from, to}` | Pete edited traits.json by hand |
+| `configChanged` | `{trait, from, to}` | The human edited traits.json by hand |
 | `claude:<name>` | hook event JSON | Claude Code hook events via `~/.buddy/events.jsonl` (`_event` field becomes `<name>`) |
 | `evolveStart` / `evolveEnd` | `{}` / `{changed}` | mutator run began/finished |
 | `testMode` | `{on}` | menu toggle, lifts rate limits for 1h |
@@ -84,7 +84,7 @@ call, so re-registering inside the handler works.
 
 ### Phone (ntfy)
 
-- `buddy.phone(text)` -> bool. Push to Pete's phone. Natively rate-limited:
+- `buddy.phone(text)` -> bool. Push to the human's phone. Natively rate-limited:
   10-minute minimum gap AND the disruption budget. False = not sent.
 - `buddy.phoneReply(text)` -> bool. Reply channel for `phoneChat` events only;
   light 15s rate limit.
@@ -101,7 +101,7 @@ call, so re-registering inside the handler works.
 - `buddy.traits.get(name)` -> number (0.5 if unknown)
 - `buddy.traits.all()` -> `{name: value}`
 - `buddy.traits.set(name, value)` -> bool - clamped to the trait's min/max
-  bounds; for acting on Pete's chat requests. Bounds stay Pete-only.
+  bounds; for acting on the human's chat requests. Bounds stay human-only.
 - `buddy.memory.get(key)` / `buddy.memory.set(key, value)` - persisted JSON
   key-value (`~/.buddy/memory.json`). `set(key, null)` deletes.
 - `buddy.data(name)` - read-only JSON loader, restricted to `*.json` directly

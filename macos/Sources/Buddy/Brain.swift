@@ -22,7 +22,7 @@ final class Brain {
     private var loading = false
     private var memory: [String: Any] = [:]
     private let think = Think()
-    // Interactive lane: Pete's chats get their own warm session so they never
+    // Interactive lane: the human's chats get their own warm session so they never
     // queue behind ambient musings; recycled fast to keep context lean.
     private let thinkFast = Think(maxTurns: 12)
 
@@ -173,7 +173,7 @@ final class Brain {
         }
         set("isMoving", isMoving)
 
-        // Append-only access to feedback.md - lets Pete file notes through chat.
+        // Append-only access to feedback.md - lets the human file notes through chat.
         // Deliberately not a general file-write.
         let feedbackJS: @convention(block) (String) -> Void = { text in
             let df = DateFormatter()
@@ -194,7 +194,7 @@ final class Brain {
                 let g = Process()
                 g.executableURL = URL(fileURLWithPath: "/usr/bin/git")
                 g.arguments = ["-C", BuddyPaths.brain.path,
-                               "commit", "-m", "feedback from pete (via chat)", "--", "feedback.md"]
+                               "commit", "-m", "feedback from the human (via chat)", "--", "feedback.md"]
                 g.standardOutput = Pipe()
                 g.standardError = Pipe()
                 try? g.run()
@@ -204,7 +204,7 @@ final class Brain {
         }
         set("feedback", feedbackJS)
 
-        // Push to Pete's phone. Heavily rate-limited natively.
+        // Push to the human's phone. Heavily rate-limited natively.
         let phoneJS: @convention(block) (String) -> Bool = { [weak self] text in
             self?.controller?.phoneNotify(text) ?? false
         }
@@ -228,7 +228,7 @@ final class Brain {
         }
         set("hasPeer", hasPeerJS)
 
-        // Reply to a message Pete sent from his phone - lightly rate-limited,
+        // Reply to a message the human sent from their phone - lightly rate-limited,
         // for use ONLY in response to phoneChat events.
         let phoneReplyJS: @convention(block) (String) -> Bool = { [weak self] text in
             self?.controller?.phoneReply(text) ?? false
@@ -336,8 +336,8 @@ final class Brain {
             Traits.values()
         }
         traits.setObject(traitAll, forKeyedSubscript: "all" as NSString)
-        // Clamped to the trait's min/max bounds - for acting on Pete's chat
-        // requests ("be quieter"). Bounds stay Pete-only.
+        // Clamped to the trait's min/max bounds - for acting on the human's chat
+        // requests ("be quieter"). Bounds stay human-only.
         let traitSet: @convention(block) (String, Double) -> Bool = { name, value in
             Traits.setValue(name, to: value)
         }
@@ -401,7 +401,7 @@ final class Brain {
         }
         set("think", thinkJS)
 
-        // Interactive lane - for replying to Pete, never blocked by ambient.
+        // Interactive lane - for replying to the human, never blocked by ambient.
         let thinkNowJS: @convention(block) (String, JSValue) -> Void = { [weak self] prompt, cb in
             guard let self else { return }
             let gen = self.generation

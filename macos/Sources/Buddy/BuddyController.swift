@@ -117,7 +117,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         coordination.onArrive = { [weak self] payload in
             guard let self else { return }
             // Buddy's soul travels with it: adopt the replicated traits
-            // (clamped to Pete's bounds like any other write).
+            // (clamped to the human's bounds like any other write).
             if let traits = payload["traits"] as? [String: Double] {
                 for (name, value) in traits { _ = Traits.setValue(name, to: value) }
             }
@@ -131,7 +131,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         coordination.snapshot = { ["traits": Traits.values(), "traitSpecs": Traits.specs()] }
         coordination.onSnapshot = { payload in
             // Trait edits made wherever buddy lives apply here too (clamped
-            // to Pete's bounds as always; bounds themselves never replicate in).
+            // to the human's bounds as always; bounds themselves never replicate in).
             if let traits = payload["traits"] as? [String: Double] {
                 for (name, value) in traits { _ = Traits.setValue(name, to: value) }
             }
@@ -522,7 +522,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
     }
 
-    // Replies to Pete's phone messages: he initiated, so no disruption budget
+    // Replies to the human's phone messages: they initiated, so no disruption budget
     // and no 10-minute narrative gap - just a modest anti-runaway limit.
     // Real travel over the LAN coordination layer. Payload carries what the
     // arrival side needs to keep the fiction coherent; full state blob later.
@@ -573,7 +573,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         return true
     }
 
-    // Streaming inbox: one held-open connection to ntfy - Pete's texts arrive
+    // Streaming inbox: one held-open connection to ntfy - the human's texts arrive
     // the instant he sends them, no polling lag. curl recycles hourly or on
     // any disconnect; the 30s keeper timer restarts it.
     func ensurePhoneStream() {
@@ -625,7 +625,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         }
     }
 
-    // Send a push to Pete's phone via ntfy. Hard-limited: shares the
+    // Send a push to the human's phone via ntfy. Hard-limited: shares the
     // disruption budget AND a native 10-minute minimum gap - a buzzing phone
     // is the most disruptive thing buddy can do.
     func phoneNotify(_ text: String) -> Bool {

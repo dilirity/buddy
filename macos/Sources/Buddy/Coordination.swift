@@ -133,7 +133,7 @@ final class Coordination {
 
     // UDP heartbeats to every peer every 3s (mesh, per coordination.md).
     // The mac takes NO action on peer silence: the phone going quiet means
-    // "buddy is out with Pete", never death. Owner also piggybacks a state
+    // "buddy is out with the human", never death. Owner also piggybacks a state
     // snapshot broadcast every 10th beat so followers can resume after a crash.
     private func startHeartbeats(listenPort: UInt16) {
         let hbPort = listenPort + 1
