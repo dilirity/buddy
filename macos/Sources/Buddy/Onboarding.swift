@@ -14,13 +14,29 @@ final class OnboardingWindow: NSObject {
     static var marker: URL { BuddyPaths.home.appendingPathComponent("onboarded") }
     static var needed: Bool { !FileManager.default.fileExists(atPath: marker.path) }
 
-    static func userNameForDisplay() -> String? { memoryString("userName") }
+    static func userNameForDisplay() -> String? { memoryString("userName") ?? parsedFromPersona().name }
+
+    static func parsedFromPersona() -> (name: String?, interests: String?) {
+        guard let text = try? String(contentsOf: BuddyPaths.persona, encoding: .utf8) else { return (nil, nil) }
+        func capture(_ pattern: String) -> String? {
+            guard let r = try? NSRegularExpression(pattern: pattern),
+                  let m = r.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+                  m.numberOfRanges > 1, let range = Range(m.range(at: 1), in: text) else { return nil }
+            return String(text[range]).trimmingCharacters(in: .whitespaces)
+        }
+        return (capture("lives on (.+?)'s "),
+                capture("You love (.+?), and you sneak"))
+    }
 
     func show() {
         window?.close()
 
-        nameField.stringValue = Self.memoryString("userName") ?? ""
-        interestsField.stringValue = Self.memoryString("interests") ?? ""
+        // Memory keys are authoritative; installs that predate the interview
+        // only have the facts as persona.md prose - recover a best-effort
+        // prefill from the known template phrasing.
+        let parsed = Self.parsedFromPersona()
+        nameField.stringValue = Self.memoryString("userName") ?? parsed.name ?? ""
+        interestsField.stringValue = Self.memoryString("interests") ?? parsed.interests ?? ""
 
         let stack = NSStackView()
         stack.orientation = .vertical
