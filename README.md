@@ -26,7 +26,7 @@ launchctl load ~/Library/LaunchAgents/com.buddy.mutator.plist
 
 Or trigger a mutation on demand: menu bar `ᴥ` > Evolve Now. Buddy plays its evolve animation while the mutator works; tests added by the latest mutation appear under "What's New ✨" until the next one graduates them.
 
-Grant Accessibility/Input Monitoring permission when macOS asks - needed for cursor mischief, typing awareness, and the panic gesture. Buddy degrades gracefully without it.
+Grant Input Monitoring permission (menu > Setup > Fix) - needed for typing awareness and the double-Esc panic gesture. Cursor mischief needs no permission; it is governed by buddy's own settings. Buddy degrades gracefully without the grant.
 
 ## Controls
 

@@ -102,7 +102,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         coordination = Coordination(deviceId: "mac", rank: 1, owner: true)
         setup.peersProvider = { [weak self] in self?.coordination.knownPeers ?? [] }
         setup.musicRequest = { [weak self] in self?.music.requestAccess() }
-        setup.axProvider = { [weak self] in self?.axTrustedLive ?? AXIsProcessTrusted() }
+        setup.inputMonitoringProvider = { [weak self] in self?.inputMonitoringGranted ?? CGPreflightListenEventAccess() }
         coordination.onDepart = { [weak self] in
             guard let self else { return }
             self.stopMoving()
@@ -146,7 +146,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         play("idle")
 
         checkUpdateGrantLoss()
-        watchAxChanges()
+        watchPermissionChanges()
 
         commonTimer(3600, repeats: true) { [weak self] _ in
             self?.checkEvolutionStaleness()
@@ -388,7 +388,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
     }
 
     func warpCursor(to point: NSPoint) -> Bool {
-        let allowed = !buddyAway && axTrustedLive && allowDisruptive()
+        let allowed = !buddyAway && allowDisruptive()
         buddyActivity("cursorWarp", ["allowed": allowed])
         guard allowed else { return false }
         warpCursorRaw(to: point)
@@ -405,7 +405,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
 
     // Pin the cursor to buddy for a few seconds - the "steal". One disruptive act.
     func grabCursor(seconds: Double) -> Bool {
-        let allowed = !buddyAway && axTrustedLive && allowDisruptive()
+        let allowed = !buddyAway && allowDisruptive()
         buddyActivity("cursorGrab", ["allowed": allowed, "seconds": seconds])
         guard allowed else { return false }
         grabTimer?.invalidate()
@@ -770,45 +770,43 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         return true
     }
 
-    // Live Accessibility state. The in-process API only repeats its
-    // launch-time answer, so a fresh helper process (`Buddy --ax-check`) asks
-    // macOS for the CURRENT Privacy-list state. Event-driven: macOS broadcasts
-    // com.apple.accessibility.api on any grant change - no polling. Buddy
-    // honors revocation by policy (cursor verbs gate on this) even though the
-    // OS would let the running process coast until relaunch.
-    private(set) var axTrustedLive = AXIsProcessTrusted()
-    private var axDebounce: Timer?
+    // Live Input Monitoring state - the permission that actually gates the
+    // global key monitor (typing sense, double-Esc panic). Cursor tricks need
+    // no macOS permission at all; they are governed by buddy's own settings.
+    // TCC broadcasts com.apple.accessibility.api on grant changes; re-check
+    // on it (debounced - it fires in bursts, for any app's change).
+    private(set) var inputMonitoringGranted = CGPreflightListenEventAccess()
+    private var permDebounce: Timer?
 
-    func watchAxChanges() {
+    func watchPermissionChanges() {
         DistributedNotificationCenter.default().addObserver(
             forName: NSNotification.Name("com.apple.accessibility.api"),
             object: nil, queue: .main
         ) { [weak self] _ in
-            // Fires for ANY app's grant change, sometimes in bursts - debounce
-            // then check whether it was ours.
-            self?.axDebounce?.invalidate()
-            self?.axDebounce = commonTimer(0.5, repeats: false) { _ in
-                self?.refreshAxLive()
+            self?.permDebounce?.invalidate()
+            self?.permDebounce = commonTimer(0.5, repeats: false) { _ in
+                self?.refreshPermissions()
             }
         }
     }
 
-    func refreshAxLive() {
+    func refreshPermissions() {
         DispatchQueue.global().async { [weak self] in
+            // Fresh helper process, not the in-process preflight: same
+            // launch-time-caching trap AXIsProcessTrusted proved to have.
             let p = Process()
             p.executableURL = URL(fileURLWithPath: CommandLine.arguments[0])
-            p.arguments = ["--ax-check"]
+            p.arguments = ["--perm-check"]
             guard (try? p.run()) != nil else { return }
             p.waitUntilExit()
             let ok = p.terminationStatus == 0
             DispatchQueue.main.async {
-                guard let self, self.axTrustedLive != ok else { return }
-                self.axTrustedLive = ok
-                buddyLog("accessibility changed live: \(ok)")
-                buddyActivity("axChanged", ["granted": ok])
+                guard let self, self.inputMonitoringGranted != ok else { return }
+                self.inputMonitoringGranted = ok
+                buddyLog("input monitoring changed live: \(ok)")
+                buddyActivity("permChanged", ["inputMonitoring": ok])
                 if ok { self.senses.armKeyMonitor() }
-                self.say(ok ? "my powers are back!"
-                            : "hey, you took my cursor powers. rude. fine, hands off",
+                self.say(ok ? "ooh I can feel you typing now" : "keyboard's gone dark. no more panic gesture",
                          seconds: 6)
             }
         }
@@ -828,7 +826,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         let old = (try? String(contentsOf: url, encoding: .utf8))?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         try? stamp.data(using: .utf8)?.write(to: url)
-        guard let old, old != stamp, !AXIsProcessTrusted() else { return }
+        guard let old, old != stamp, !CGPreflightListenEventAccess() else { return }
         commonTimer(5, repeats: false) { [weak self] _ in
             guard let self else { return }
             self.say("new body! macOS wiped my permissions though. Setup has the fix", seconds: 8)

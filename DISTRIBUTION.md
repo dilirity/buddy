@@ -47,8 +47,10 @@ One window, reachable from the status bar menu at any time (not just first run).
 
 | Row | Detection | Fix action | Without it |
 |---|---|---|---|
-| Accessibility | `AXIsProcessTrusted()` | Deep-link to System Settings privacy pane | No cursor grab/warp, no typing sense |
+| Input Monitoring | `CGPreflightListenEventAccess()` via fresh helper process (in-process answers can be stale) | `CGRequestListenEventAccess()` + deep-link to the pane | No typing sense, no double-Esc panic |
 | Automation (Music/Spotify) | best effort; informational | Explain the one-time per-update prompt | DJ acts silently fail |
+
+Audited permission map (verified 2026-07-29): cursor warp/grab, idle detection, and window awareness need NO macOS permission; the global key monitor (typing sense, double-Esc panic) needs Input Monitoring; music verbs need per-app Automation. Buddy uses nothing that requires Accessibility - do not resurrect that row.
 | Claude Code | `which claude` + `claude --version` | Link to install docs | Small brain mode: no think, no chat, no evolution |
 | Hooks | Parse ~/.claude/settings.json for buddy marker | Opens WS4 consent flow | No reactions to Claude sessions |
 | Evolution service | launchd job loaded? next run time | Toggle: load/unload the agent | Buddy never changes |

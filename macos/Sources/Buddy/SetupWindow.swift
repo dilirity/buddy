@@ -20,7 +20,7 @@ final class SetupWindow: NSObject {
     private var claudeChecked = false
     // Live Privacy-list state lives with the controller (event-driven via
     // com.apple.accessibility.api); the panel just reads it.
-    var axProvider: (() -> Bool)?
+    var inputMonitoringProvider: (() -> Bool)?
 
     private final class Row {
         let dot = NSTextField(labelWithString: "●")
@@ -83,39 +83,35 @@ final class SetupWindow: NSObject {
         stack.spacing = 14
         stack.edgeInsets = NSEdgeInsets(top: 20, left: 20, bottom: 20, right: 20)
 
-        add(to: stack, Row(title: "Accessibility", tag: "recommended") { [weak self] row in
-            // axLive mirrors the Privacy list via a fresh helper process; the
-            // in-process API only ever repeats the launch-time answer.
-            let live = self?.axProvider?() ?? AXIsProcessTrusted()
+        add(to: stack, Row(title: "Input monitoring", tag: "recommended") { [weak self] row in
+            let live = self?.inputMonitoringProvider?() ?? CGPreflightListenEventAccess()
             if live {
-                row.set(true, "granted - cursor mischief, typing sense, and the panic gesture work")
+                row.set(true, "granted - typing sense and the double-Esc panic gesture work")
             } else {
-                var text = "not granted - no cursor stealing, no typing awareness, no double-Esc panic. "
-                    + "A listed Buddy entry may belong to an OLD build (updates reset grants): remove it "
-                    + "with the minus button, then use Fix here to register this build and toggle it on"
-                if AXIsProcessTrusted() {
-                    text = "removed in System Settings - the running buddy keeps its old access until "
-                        + "relaunched (macOS applies revocations at launch). Fix re-registers this build"
-                }
-                row.set(false, text,
+                row.set(false, "not granted - buddy cannot see the keyboard: no typing awareness, no "
+                        + "double-Esc panic (menu Freeze/Wake still works). Fix opens System Settings; "
+                        + "macOS may ask to relaunch buddy",
                         button: "Fix...") {
-                    // Registers THIS binary in the Accessibility list (a stale
-                    // entry from a previous build toggles the wrong fingerprint),
-                    // then opens the pane so the user flips the switch.
-                    let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-                    AXIsProcessTrustedWithOptions(opts)
+                    // Registers THIS binary in the Input Monitoring list (a
+                    // stale entry from a previous build toggles the wrong
+                    // fingerprint), then opens the pane for the switch.
+                    CGRequestListenEventAccess()
                     NSWorkspace.shared.open(URL(string:
-                        "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
+                        "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")!)
                 }
             }
+        })
+
+        add(to: stack, Row(title: "Cursor mischief", tag: "info") { row in
+            row.set(nil, "heists and warps need NO macOS permission - they are governed by buddy's own "
+                    + "leash: the mischief slider, the disruptive-acts budget, and freeze/panic.")
         })
 
         add(to: stack, Row(title: "Music control", tag: "optional") { [weak self] row in
             // No reliable read of the Automation grant without prompting;
             // explain the prompt instead of pretending to know.
-            row.set(nil, "buddy can control Music/Spotify. macOS asks \"Buddy would like to control...\" once"
-                    + " per buddy update (updates reset grants; evolution never does). If you haven't seen"
-                    + " the prompt, request it now instead of meeting it mid-song next week.",
+            row.set(nil, "buddy can control Music/Spotify - macOS will ask you to approve that the first"
+                    + " time. Request it now instead of meeting the prompt mid-song next week.",
                     button: "Request access") {
                 self?.musicRequest?()
             }
