@@ -139,15 +139,13 @@ final class SetupWindow: NSObject {
             }
         })
 
-        add(to: stack, Row(title: "Claude hooks", tag: "recommended") { row in
-            let settings = FileManager.default.homeDirectoryForCurrentUser
-                .appendingPathComponent(".claude/settings.json")
-            let content = (try? String(contentsOf: settings, encoding: .utf8)) ?? ""
-            if content.contains("buddy-hook") {
-                row.set(true, "installed - buddy reacts to your Claude Code sessions")
+        add(to: stack, Row(title: "Claude hooks", tag: "recommended") { [weak self] row in
+            if Hooks.installed() {
+                row.set(true, "installed - buddy reacts to your Claude Code sessions",
+                        button: "Remove...") { self?.changeHooks(install: false) }
             } else {
-                row.set(false, "not installed - buddy is blind to your Claude sessions. "
-                        + "Install from the buddy repo: python3 macos/bin/install-hooks.py")
+                row.set(false, "not installed - buddy is blind to your Claude sessions",
+                        button: "Install...") { self?.changeHooks(install: true) }
             }
         })
 
@@ -378,6 +376,40 @@ final class SetupWindow: NSObject {
     private var mutatorPlist: URL {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/LaunchAgents/com.buddy.mutator.plist")
+    }
+
+    // MARK: - Hooks consent
+
+    private func changeHooks(install: Bool) {
+        // Hooks point at $BUDDY_HOME/bin/buddy-hook; a sandbox instance would
+        // wire the real ~/.claude to a throwaway directory.
+        if BuddyPaths.isSandbox {
+            let a = NSAlert()
+            a.messageText = "Sandbox instance"
+            a.informativeText = "This buddy runs against a BUDDY_HOME sandbox; Claude hooks belong to the real install."
+            a.runModal()
+            return
+        }
+        let plan = install ? Hooks.installPlan() : Hooks.removePlan()
+        guard !plan.isEmpty else { refreshAll(); return }
+        let a = NSAlert()
+        a.messageText = install ? "Add buddy's hooks to Claude Code?" : "Remove buddy's hooks from Claude Code?"
+        a.informativeText = "Exact changes to ~/.claude/settings.json"
+            + " (a backup is saved to ~/.buddy/backups/ first):\n\n"
+            + plan.joined(separator: "\n")
+            + (install ? "\n\nThese only record events for buddy to react to - they never change what Claude does." : "")
+        a.addButton(withTitle: install ? "Add" : "Remove")
+        a.addButton(withTitle: "Cancel")
+        guard a.runModal() == .alertFirstButtonReturn else { return }
+        let ok = install ? Hooks.install() : Hooks.remove()
+        if !ok {
+            let e = NSAlert()
+            e.messageText = "Could not write settings.json"
+            e.informativeText = "Nothing was changed. See ~/.buddy/buddy.log."
+            e.runModal()
+        }
+        buddyLog("setup: hooks \(install ? "installed" : "removed")")
+        refreshAll()
     }
 
     // Shared consent gate for anything that starts spending Claude usage.
