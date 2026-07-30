@@ -90,7 +90,8 @@ final class Coordination {
             }
             let fresh = Set(found.keys).subtracting(self.peers.keys)
             self.peers = found
-            self.peerHosts = self.peerHosts.filter { found.keys.contains($0.key) }
+            // Deliberately NOT pruning peerHosts on browse loss: cached IPs
+            // are the fallback for exactly when discovery goes blind.
             buddyLog("coord: peers \(Array(found.keys))")
             let names = Array(found.keys).sorted()
             DispatchQueue.main.async { self.knownPeers = names }
@@ -260,6 +261,12 @@ final class Coordination {
                   "op": "snapshot", "owner": ownsBuddy], on: conn)
 
         case "travel":
+            // Refuse deliveries addressed to someone else - a stale-cached IP
+            // once looped a travel back to its sender (the self-delivery bug).
+            if let to = frame["to"] as? String, to != deviceId {
+                buddyLog("coord: travel misdelivery (to \(to)), refused")
+                return
+            }
             // Buddy incoming: adopt the proposed epoch, ack, own it.
             epoch = fEpoch
             ownsBuddy = true
@@ -342,7 +349,9 @@ final class Coordination {
             }
             self.adoptForAck(conn, expecting: proposed, finish: finish)
             conn.start(queue: self.queue)
-            self.send(["type": "travel", "epoch": proposed, "payload": payload], on: conn)
+            let target = self.peers.first?.0 ?? "phone"
+            self.send(["type": "travel", "epoch": proposed, "to": target,
+                       "payload": payload], on: conn)
             self.queue.asyncAfter(deadline: .now() + 10) { finish(false) }
         }
     }

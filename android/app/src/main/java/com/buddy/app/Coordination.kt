@@ -89,7 +89,7 @@ class Coordination(context: Context, private val onUi: Handler = Handler(Looper.
 
         nsd.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, object : NsdManager.DiscoveryListener {
             override fun onServiceFound(s: NsdServiceInfo) {
-                if (s.serviceName == "phone") return
+                if (s.serviceName.startsWith("phone")) return
                 nsd.resolveService(s, object : NsdManager.ResolveListener {
                     override fun onServiceResolved(r: NsdServiceInfo) {
                         peerHost = r.host?.hostAddress
@@ -101,7 +101,7 @@ class Coordination(context: Context, private val onUi: Handler = Handler(Looper.
                 })
             }
             override fun onServiceLost(s: NsdServiceInfo) {
-                if (s.serviceName != "phone") { peerHost = null; BuddyService.peerOnline = false }
+                if (!s.serviceName.startsWith("phone")) { peerHost = null; BuddyService.peerOnline = false }
             }
             override fun onDiscoveryStarted(t: String) {}
             override fun onDiscoveryStopped(t: String) {}
@@ -205,6 +205,11 @@ class Coordination(context: Context, private val onUi: Handler = Handler(Looper.
                         .put("type", "state").put("epoch", epoch)
                         .put("seq", 0).put("op", "snapshot").put("owner", ownsBuddy))
                     "travel" -> {
+                        val to = frame.optString("to")
+                        if (to.isNotEmpty() && to != "phone") {
+                            Log.i(TAG, "travel misdelivery (to $to), refused")
+                            continue
+                        }
                         epoch = fEpoch
                         ownsBuddy = true
                         send(sock, JSONObject().put("type", "travel-ack").put("epoch", epoch))
@@ -310,6 +315,7 @@ class Coordination(context: Context, private val onUi: Handler = Handler(Looper.
                 sock.connect(InetSocketAddress(host, port), 5000)
                 sock.soTimeout = 10000
                 send(sock, JSONObject().put("type", "travel").put("epoch", proposed)
+                    .put("to", "mac")
                     .put("payload", payload))
                 val reader = BufferedReader(InputStreamReader(sock.getInputStream()))
                 while (true) {
