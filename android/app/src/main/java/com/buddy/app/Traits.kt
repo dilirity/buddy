@@ -5,7 +5,7 @@ import org.json.JSONObject
 
 // Personality sliders, replicated from the mac (values + drift bounds via
 // the travel payload / state snapshots). Writes clamp to each trait's bounds,
-// exactly like the mac's traits.json rules. Bounds are Pete's; the phone
+// exactly like the mac's traits.json rules. Bounds are the human's; the phone
 // never invents them - traits without known bounds clamp to 0..1.
 object Traits {
     private const val PREFS = "traits"

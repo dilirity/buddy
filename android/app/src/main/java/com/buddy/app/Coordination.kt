@@ -171,7 +171,7 @@ class Coordination(context: Context, private val onUi: Handler = Handler(Looper.
     // The phone is rank 2 and the mac is rank 1: an election here happens
     // only when the mac owned buddy and crashed (silence past timeout while
     // on the LAN). The phone going silent never triggers anything anywhere -
-    // that is the "buddy is out with Pete" rule, enforced on the mac side by
+    // that is the "buddy is out with the human" rule, enforced on the mac side by
     // taking no action on silence at all.
     private fun checkElection() {
         if (ownsBuddy) return
@@ -259,7 +259,7 @@ class Coordination(context: Context, private val onUi: Handler = Handler(Looper.
     }
 
     // Ask the owner to change a trait: one soul, owner holds the pen. The
-    // owner applies (clamped to Pete's bounds) and its state broadcast echoes
+    // owner applies (clamped to the human's bounds) and its state broadcast echoes
     // the result back to every device.
     var onTraitSet: ((String, Double) -> Unit)? = null
 

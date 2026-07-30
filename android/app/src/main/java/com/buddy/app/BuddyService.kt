@@ -35,7 +35,7 @@ class BuddyService : Service() {
     private var lastPhonePush = 0L
 
     // Phone invariants: tighter than the mac - a buzzing phone is worse than
-    // a talking desktop. Pete-editable via files, not the mutator.
+    // a talking desktop. Human-editable via files, not the mutator.
     private var maxDisruptivePerHour = 3
 
     private val glyph by lazy { GlyphBridge(this) }
@@ -181,7 +181,7 @@ class BuddyService : Service() {
     }
 
     private fun pushNotification(text: String, hard: Boolean): Boolean {
-        loadInvariants() // Pete may have moved the leash in settings
+        loadInvariants() // the human may have moved the leash in settings
         val now = System.currentTimeMillis()
         if (hard) {
             if (now - lastPhonePush < 600_000) return false

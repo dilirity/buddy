@@ -70,7 +70,7 @@ class BuddyBrain(private val appContext: Context, private val shell: Shell) {
     // Seed bundled brain files. Unlike the mac, nothing evolves ON the phone:
     // bundled .js/.json are authoritative and overwrite stale copies when they
     // differ. .md files (feedback the phone wrote) are only created, never
-    // replaced - they carry Pete's words.
+    // replaced - they carry the human's words.
     private fun seedBrainFromAssets() {
         brainDir.mkdirs()
         val assets = appContext.assets
@@ -254,7 +254,7 @@ class BuddyBrain(private val appContext: Context, private val shell: Shell) {
         // Windows: not sensable on Android v1.
         buddy.setProperty("windows", jsFn("windows") { _ ->  c.parseJSON("[]") })
 
-        // Phone: buddy IS on the phone - "texting Pete" is a local notification.
+        // Phone: buddy IS on the phone - "texting the human" is a local notification.
         buddy.setProperty("phone", jsFn("phone") { args ->
             shell.phoneNotify(args[0] as String)
         })
