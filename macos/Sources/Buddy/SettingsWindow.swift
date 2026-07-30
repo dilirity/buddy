@@ -130,8 +130,7 @@ final class SettingsWindow: NSObject {
     private func loadConfig() -> [(String, [String: Any])] {
         guard let data = try? Data(contentsOf: schemaURL),
               let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return [] }
-        let values = (try? Data(contentsOf: BuddyPaths.config))
-            .flatMap { (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] } ?? [:]
+        let values = UserConfig.load()
         return json.compactMap { key, value in
             (value as? [String: Any]).map { entry in
                 var e = entry
@@ -173,14 +172,25 @@ final class SettingsWindow: NSObject {
             check.identifier = id
             check.state = (entry["value"] as? Bool ?? false) ? .on : .off
             row.addArrangedSubview(check)
-        case "weekday":
+        case "weekday", "choice":
             let popup = NSPopUpButton(frame: .zero, pullsDown: false)
             popup.identifier = id
-            popup.addItems(withTitles: Self.weekdays)
-            popup.selectItem(withTitle: entry["value"] as? String ?? "monday")
+            let titles = type == "weekday" ? Self.weekdays : (entry["options"] as? [String] ?? [])
+            popup.addItems(withTitles: titles)
+            popup.selectItem(withTitle: entry["value"] as? String ?? titles.first ?? "")
             popup.target = self
-            popup.action = #selector(configWeekdayChanged(_:))
+            popup.action = #selector(configPopupChanged(_:))
             row.addArrangedSubview(popup)
+        case "list":
+            let joined = (entry["value"] as? [Any])?.compactMap { $0 as? String }.joined(separator: ", ") ?? ""
+            let field = NSTextField(string: joined)
+            field.identifier = id
+            field.placeholderString = "comma-separated"
+            field.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+            field.widthAnchor.constraint(equalToConstant: 200).isActive = true
+            field.target = self
+            field.action = #selector(configTextChanged(_:))
+            row.addArrangedSubview(field)
         case "date":
             let picker = NSDatePicker()
             picker.identifier = id
@@ -228,7 +238,7 @@ final class SettingsWindow: NSObject {
         saveConfigValue(key, value: sender.state == .on)
     }
 
-    @objc private func configWeekdayChanged(_ sender: NSPopUpButton) {
+    @objc private func configPopupChanged(_ sender: NSPopUpButton) {
         guard let key = configKey(sender), let title = sender.titleOfSelectedItem else { return }
         saveConfigValue(key, value: title)
     }
@@ -241,11 +251,18 @@ final class SettingsWindow: NSObject {
     @objc private func configTextChanged(_ sender: NSTextField) {
         guard let key = configKey(sender) else { return }
         let text = sender.stringValue
-        if let data = try? Data(contentsOf: schemaURL),
-           let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
-           (json[key] as? [String: Any])?["type"] as? String == "number" {
+        let type = (try? Data(contentsOf: schemaURL))
+            .flatMap { (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] }
+            .flatMap { ($0[key] as? [String: Any])?["type"] as? String }
+        switch type {
+        case "number":
             saveConfigValue(key, value: Double(text) ?? 0)
-        } else {
+        case "list":
+            let items = text.split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty }
+            saveConfigValue(key, value: items)
+        default:
             saveConfigValue(key, value: text)
         }
     }
@@ -257,11 +274,8 @@ final class SettingsWindow: NSObject {
 
     private func saveConfigValue(_ key: String, value: Any) {
         // Missing values file is normal (fresh install, or deleted by hand -
-        // everything falls back to schema defaults); recreate it on first tweak.
-        var json = (try? Data(contentsOf: BuddyPaths.config))
-            .flatMap { (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] } ?? [:]
-        json[key] = value
-        write(json, to: BuddyPaths.config)
+        // everything falls back to schema defaults); UserConfig recreates it.
+        UserConfig.set(key, value)
     }
 
     private func saveTrait(_ name: String, value: Double) {

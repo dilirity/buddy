@@ -61,6 +61,24 @@ enum BuddyPaths {
     """
 }
 
+// The human's declared facts (~/.buddy/config.json, flat {key: value}).
+// Single write path for settings UI, onboarding, and the brain's
+// confirmation-gated configSet - see brain/config-schema.json for the shapes.
+enum UserConfig {
+    static func load() -> [String: Any] {
+        guard let data = try? Data(contentsOf: BuddyPaths.config) else { return [:] }
+        return ((try? JSONSerialization.jsonObject(with: data)) as? [String: Any]) ?? [:]
+    }
+
+    static func set(_ key: String, _ value: Any?) {
+        var json = load()
+        if let value { json[key] = value } else { json.removeValue(forKey: key) }
+        if let data = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]) {
+            try? data.write(to: BuddyPaths.config)
+        }
+    }
+}
+
 // All buddy timers go through this: scheduled in .common run loop modes so
 // animation, movement, and brain ticks keep running while a menu is open
 // (default-mode timers pause during menu tracking - frozen buddy).

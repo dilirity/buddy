@@ -1,6 +1,10 @@
 
-// What buddy calls its human. Set during onboarding; "boss" until then.
-function userName() { return buddy.memory.get("userName") || "boss"; }
+// What buddy calls its human. Declared in config (onboarding/settings);
+// memory fallback covers installs that predate the config store. "boss"
+// until told otherwise.
+function userName() {
+  return cfg("name", "") || buddy.memory.get("userName") || "boss";
+}
 // Buddy brain core. Files load in filename order; this one first.
 // Coordinates are Cocoa: origin at bottom-left. buddy.screen() = visible frame {x,y,w,h}.
 globalThis.state = { mood: "happy", busy: false };

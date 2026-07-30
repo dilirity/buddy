@@ -1,15 +1,18 @@
 import AppKit
 
-// First-run interview: what buddy calls you, what you love, how much of a
-// menace to be. Facts land in memory.json (the single source of truth -
-// think() appends them to the persona at use time; persona.md itself is
-// buddy's own evolving prose and no UI ever writes it). Skippable; editable
-// later from Setup.
+// First-run interview: what buddy calls you, pronouns, what you love, how
+// much of a menace to be. It is just a friendly face over the same stores
+// settings uses: declared facts land in ~/.buddy/config.json, the menace
+// slider seeds the mischief trait. think() appends the facts to the persona
+// at use time; persona.md itself is buddy's own evolving prose and no UI
+// ever writes it. Skippable; editable later from settings.
 final class OnboardingWindow: NSObject {
     private var window: NSWindow?
     private let nameField = NSTextField(string: "")
+    private let pronouns = NSPopUpButton(frame: .zero, pullsDown: false)
     private let interestsField = NSTextField(string: "")
     private let menace = NSSlider(value: 0.5, minValue: 0, maxValue: 1, target: nil, action: nil)
+    static let pronounOptions = ["they/them", "she/her", "he/him"]
     // Fired after saving so the brain (and its warm think sessions) reload
     // onto the new facts.
     var onSaved: (() -> Void)?
@@ -17,7 +20,10 @@ final class OnboardingWindow: NSObject {
     static var marker: URL { BuddyPaths.home.appendingPathComponent("onboarded") }
     static var needed: Bool { !FileManager.default.fileExists(atPath: marker.path) }
 
-    static func userNameForDisplay() -> String? { memoryString("userName") ?? parsedFromPersona().name }
+    static func userNameForDisplay() -> String? {
+        (UserConfig.load()["name"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+            ?? memoryString("userName") ?? parsedFromPersona().name
+    }
 
     static func parsedFromPersona() -> (name: String?, interests: String?) {
         guard let text = try? String(contentsOf: BuddyPaths.persona, encoding: .utf8) else { return (nil, nil) }
@@ -34,12 +40,21 @@ final class OnboardingWindow: NSObject {
     func show() {
         window?.close()
 
-        // Memory keys are authoritative; installs that predate the interview
-        // only have the facts as persona.md prose - recover a best-effort
-        // prefill from the known template phrasing.
+        // Config is authoritative; memory keys cover pre-config installs, and
+        // installs that predate the interview only have the facts as
+        // persona.md prose - recover a best-effort prefill from the known
+        // template phrasing.
         let parsed = Self.parsedFromPersona()
-        nameField.stringValue = Self.memoryString("userName") ?? parsed.name ?? ""
-        interestsField.stringValue = Self.memoryString("interests") ?? parsed.interests ?? ""
+        let cfg = UserConfig.load()
+        nameField.stringValue = (cfg["name"] as? String)
+            ?? Self.memoryString("userName") ?? parsed.name ?? ""
+        pronouns.addItems(withTitles: Self.pronounOptions)
+        if let p = cfg["pronouns"] as? String, Self.pronounOptions.contains(p) {
+            pronouns.selectItem(withTitle: p)
+        }
+        interestsField.stringValue = (cfg["loves"] as? [Any])
+            .map { $0.compactMap { $0 as? String }.joined(separator: ", ") }
+            ?? Self.memoryString("interests") ?? parsed.interests ?? ""
 
         let stack = NSStackView()
         stack.orientation = .vertical
@@ -53,6 +68,17 @@ final class OnboardingWindow: NSObject {
         stack.addArrangedSubview(intro)
 
         stack.addArrangedSubview(field("what do i call you?", nameField, placeholder: "your name"))
+
+        let pronounBox = NSStackView()
+        pronounBox.orientation = .vertical
+        pronounBox.alignment = .leading
+        pronounBox.spacing = 3
+        let pronounLabel = NSTextField(labelWithString: "pronouns?")
+        pronounLabel.font = NSFont.systemFont(ofSize: 12)
+        pronounBox.addArrangedSubview(pronounLabel)
+        pronounBox.addArrangedSubview(pronouns)
+        stack.addArrangedSubview(pronounBox)
+
         stack.addArrangedSubview(field("shows, games, movies you love? i steal references.",
                                        interestsField, placeholder: "e.g. Portal, Friends, Alien"))
 
@@ -111,10 +137,18 @@ final class OnboardingWindow: NSObject {
 
     @objc private func saveTapped() {
         let name = nameField.stringValue.trimmingCharacters(in: .whitespaces)
-        let interests = interestsField.stringValue.trimmingCharacters(in: .whitespaces)
+        let loves = interestsField.stringValue
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
 
-        Self.setMemory("userName", name.isEmpty ? nil : name)
-        Self.setMemory("interests", interests.isEmpty ? nil : interests)
+        UserConfig.set("name", name.isEmpty ? nil : name)
+        UserConfig.set("pronouns", pronouns.titleOfSelectedItem)
+        UserConfig.set("loves", loves.isEmpty ? nil : loves)
+        // Facts moved to config; stale memory copies would shadow edits in
+        // the fallback readers, so clear them.
+        Self.setMemory("userName", nil)
+        Self.setMemory("interests", nil)
         // The menace slider seeds mischief; bounds in traits.json still clamp.
         _ = Traits.setValue("mischief", to: menace.doubleValue)
 

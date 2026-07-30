@@ -1,4 +1,7 @@
 {
+  "name": { "default": "", "type": "text", "label": "what buddy calls you" },
+  "pronouns": { "default": "they/them", "type": "choice", "options": ["they/them", "she/her", "he/him"], "label": "your pronouns" },
+  "loves": { "default": [], "type": "list", "label": "shows, games, music you love" },
   "eveningStart": { "default": 16, "type": "hour", "label": "evening starts" },
   "quitNagStart": { "default": 16.75, "type": "hour", "label": "quit nagging starts" },
   "quitNagEnd": { "default": 19.5, "type": "hour", "label": "quit nagging ends" },
