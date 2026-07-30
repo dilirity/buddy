@@ -49,7 +49,14 @@ final class Senses {
         keyMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.keyDown]) { [weak self] e in
             self?.handleKey(e)
         }
+        monitorAliveLogged = false
+        buddyLog("key monitor: armed")
     }
+
+    // Ground truth for "does the keyboard sense actually work": the first
+    // delivered event after each arm is logged, so grant debugging reads
+    // evidence instead of inferring from permission lists.
+    private var monitorAliveLogged = false
 
     private func schedule(_ interval: TimeInterval, _ fn: @escaping () -> Void) {
         let t = commonTimer(interval, repeats: true) { _ in fn() }
@@ -57,6 +64,10 @@ final class Senses {
     }
 
     private func handleKey(_ e: NSEvent) {
+        if !monitorAliveLogged {
+            monitorAliveLogged = true
+            buddyLog("key monitor: receiving events")
+        }
         if e.keyCode == 53 { // esc
             let now = Date()
             if now.timeIntervalSince(lastEsc) < 0.5 {
