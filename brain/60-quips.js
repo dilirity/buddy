@@ -40,10 +40,10 @@ buddy.on("claude:Stop", () => {
 registerAct("fact", {
   minGap: 300000,
   weight: () => buddy.traits.get("chattiness") * 0.5,
-  run: () => {
+  run: (act) => {
     buddy.play("scheming");
-    sayFact(7);
-    buddy.after(4000, () => buddy.play("idle"));
+    const ok = sayFact(7);
+    act.after(4000, () => { buddy.play("idle"); act.done(ok ? "said" : "no-facts"); });
   },
 });
 

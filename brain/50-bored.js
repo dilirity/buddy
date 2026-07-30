@@ -49,75 +49,66 @@ registerAct("clingy", {
 });
 
 // Mischief: cursor nudges and full heists. Native invariants rate-limit both.
-let stealing = false;
-
 registerAct("mischief", {
   minGap: 300000,
   caps: ["cursor"],
   weight: () => buddy.traits.get("mischief") * 0.7,
-  run: () => {
+  run: (act) => {
     if (chance(0.5)) {
       const c = buddy.cursor.pos();
       const ok = buddy.cursor.warp(c.x + (Math.random() * 120 - 60), c.y + (Math.random() * 120 - 60));
-      if (ok) {
-        buddy.play("scheming");
-        if (chance(0.5)) buddy.say("hehe", 2);
-        buddy.after(2000, () => buddy.play("idle"));
-      }
+      if (!ok) return act.done("budget-denied");
+      buddy.play("scheming");
+      if (chance(0.5)) buddy.say("hehe", 2);
+      act.after(2000, () => { buddy.play("idle"); act.done("nudged"); });
       return;
     }
-    // The heist, staged: prepare (scheme, announce), then lunge at the live cursor.
-    stealing = true;
-    state.busy = true;
+    // The heist: prepare (scheme, announce), then lunge at the live cursor.
     buddy.play("scheming");
     if (chance(0.6)) sayLine("chaseStart", 2);
-    buddy.after(900, () => {
-      if (!stealing) return;
+    act.after(900, () => {
       buddy.play("walk");
       buddy.chase(280);
     });
-    // Safety: never leave busy stuck if the chase gets cancelled mid-flight.
-    buddy.after(15000, () => {
-      if (stealing) { stealing = false; state.busy = state.evolving === true; }
+    act.once("gaveUp", () => {
+      sayLine("gaveUp", 4);
+      buddy.play("idle");
+      act.done("gave-up");
     });
+    act.once("caught", () => {
+      if (!buddy.cursor.grab(4)) return act.done("grab-denied");
+      buddy.play("scheming");
+      sayLine("heist", 3);
+      const s = buddy.screen();
+      buddy.moveTo(s.x + 40 + Math.random() * (s.w - 160), s.y + 40 + Math.random() * (s.h - 240), 300);
+      act.after(4200, () => {
+        buddy.play("excited");
+        buddy.say("hehehe", 2);
+        act.after(2000, () => { buddy.play("idle"); act.done("heisted"); });
+      });
+    });
+    // Chase resolves within 10s natively; belt to its braces.
+    act.after(15000, () => act.done("timeout"));
   },
-});
-
-buddy.on("gaveUp", () => {
-  if (!stealing) return;
-  stealing = false;
-  state.busy = state.evolving === true;
-  sayLine("gaveUp", 4);
-  buddy.play("idle");
-});
-
-buddy.on("caught", () => {
-  if (!stealing) return;
-  stealing = false;
-  state.busy = state.evolving === true;
-  if (!buddy.cursor.grab(4)) return;
-  buddy.play("scheming");
-  sayLine("heist", 3);
-  const s = buddy.screen();
-  buddy.moveTo(s.x + 40 + Math.random() * (s.w - 160), s.y + 40 + Math.random() * (s.h - 240), 300);
-  buddy.after(4200, () => {
-    buddy.play("excited");
-    buddy.say("hehehe", 2);
-    buddy.after(2000, () => buddy.play("idle"));
-  });
+  onInterrupt: () => buddy.stop(),
 });
 
 // Idle chatter.
 registerAct("chatter", {
   minGap: 150000,
   weight: () => buddy.traits.get("chattiness") * 0.6,
-  run: () => {
+  run: (act) => {
     if (can("think") && chance(buddy.traits.get("weirdness") * 0.5)) {
       buddy.think("Say one short weird non-sequitur a tiny pixel goblin might say.", (t) => {
+        if (!act.live) return;
         if (t) buddy.say(t, 4);
+        act.done(t ? "mused" : "blanked");
       });
+      // think can be slow or silent; never hold the stage waiting forever.
+      act.after(20000, () => act.done("think-timeout"));
     } else {
       sayLine("chatter", 4);
+      act.after(1200, () => act.done("said"));
     }
   },
 });
