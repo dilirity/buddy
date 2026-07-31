@@ -116,12 +116,18 @@ final class SetupWindow: NSObject {
                         button: "Fix...") {
                     // The prompt call registers THIS binary in the
                     // Accessibility list and shows the system dialog, whose
-                    // "Open System Settings" button opens the right pane -
-                    // opening the pane ourselves as well doubled the ask.
-                    // macOS shows the dialog only once per registration; a
-                    // user who denied it can still reach the pane manually.
-                    let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-                    AXIsProcessTrustedWithOptions(opts)
+                    // "Open System Settings" button opens the right pane.
+                    // macOS re-shows that dialog on every call until granted,
+                    // so when System Settings is already up skip it and just
+                    // steer the open instance to the Accessibility pane.
+                    if NSWorkspace.shared.runningApplications
+                        .contains(where: { $0.bundleIdentifier == "com.apple.systempreferences" }) {
+                        NSWorkspace.shared.open(URL(string:
+                            "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
+                    } else {
+                        let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+                        AXIsProcessTrustedWithOptions(opts)
+                    }
                 }
             }
         })
