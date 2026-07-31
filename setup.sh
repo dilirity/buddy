@@ -168,6 +168,38 @@ echo "installed ~/Applications/Buddy.app"
 # bundle.
 ln -sfn "$APP/MacOS/Buddy" "$BUDDY_HOME/bin/Buddy"
 
+# Stable code signature. TCC keys permission grants to the signature; ad-hoc
+# signatures change every build, which voided Accessibility on every update.
+# A local self-signed cert makes the signature stable, so a grant given once
+# survives rebuilds. Local-machine-only by nature; if anything here fails the
+# app still runs, just with the old regrant-after-update behavior.
+CERT="Buddy Dev"
+if ! security find-identity -v -p codesigning 2>/dev/null | grep -q "$CERT"; then
+  echo "== creating local signing certificate (one time; macOS will ask to confirm trust) =="
+  certtmp="$(mktemp -d)"
+  if openssl req -x509 -newkey rsa:2048 -days 3650 -nodes \
+       -keyout "$certtmp/dev.key" -out "$certtmp/dev.crt" \
+       -subj "/CN=$CERT" \
+       -addext "keyUsage=critical,digitalSignature" \
+       -addext "extendedKeyUsage=codeSigning" 2>/dev/null \
+     && openssl pkcs12 -export -legacy -in "$certtmp/dev.crt" -inkey "$certtmp/dev.key" \
+          -out "$certtmp/dev.p12" -password pass:buddy 2>/dev/null \
+     && security import "$certtmp/dev.p12" -k "$HOME/Library/Keychains/login.keychain-db" \
+          -P buddy -T /usr/bin/codesign >/dev/null \
+     && security add-trusted-cert -p codeSign \
+          -k "$HOME/Library/Keychains/login.keychain-db" "$certtmp/dev.crt"; then
+    echo "signing certificate installed"
+  else
+    echo "note: could not set up the signing certificate; permissions will keep resetting on updates"
+  fi
+  rm -rf "$certtmp"
+fi
+if security find-identity -v -p codesigning 2>/dev/null | grep -q "$CERT"; then
+  codesign --force --sign "$CERT" "$HOME/Applications/Buddy.app" 2>/dev/null \
+    && echo "app signed - permission grants now survive rebuilds" \
+    || echo "note: codesign failed; running unsigned this round"
+fi
+
 # Autostart at login. RunAtLoad only - quitting from the menu stays quit.
 # A fresh account has no LaunchAgents dir yet.
 mkdir -p "$HOME/Library/LaunchAgents"
