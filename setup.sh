@@ -136,6 +136,10 @@ if [ "$BUDDY_HOME" != "$HOME/.buddy" ]; then
 fi
 
 # App bundle in ~/Applications so Raycast/Spotlight launch buddy by name.
+# The real binary lives in the bundle - not a wrapper script - so the running
+# process carries the bundle's identity and "open Buddy.app" (Spotlight,
+# Raycast) activates the existing instance instead of spawning a blind second
+# one (the old wrapper double-launched and could eat the status item).
 APP="$HOME/Applications/Buddy.app/Contents"
 mkdir -p "$APP/MacOS"
 cat > "$APP/Info.plist" <<'PLIST'
@@ -151,11 +155,11 @@ cat > "$APP/Info.plist" <<'PLIST'
 </dict>
 </plist>
 PLIST
-cat > "$APP/MacOS/Buddy" <<'SH'
-#!/bin/bash
-exec "${BUDDY_HOME:-$HOME/.buddy}/bin/Buddy"
-SH
-chmod +x "$APP/MacOS/Buddy"
+# Unlink before copying: the running instance executes from this path, and
+# overwriting a live binary in place gets the process killed mid-run. A fresh
+# inode leaves it alive until the launchctl reload below restarts it.
+rm -f "$APP/MacOS/Buddy"
+cp macos/.build/release/Buddy "$APP/MacOS/Buddy"
 echo "installed ~/Applications/Buddy.app"
 
 # Autostart at login. RunAtLoad only - quitting from the menu stays quit.
@@ -169,7 +173,7 @@ cat > "$HOME/Library/LaunchAgents/com.buddy.app.plist" <<PLIST
     <key>Label</key><string>com.buddy.app</string>
     <key>ProgramArguments</key>
     <array>
-        <string>$BUDDY_HOME/bin/Buddy</string>
+        <string>$HOME/Applications/Buddy.app/Contents/MacOS/Buddy</string>
     </array>
     <key>RunAtLoad</key><true/>
     <key>ProcessType</key><string>Interactive</string>
