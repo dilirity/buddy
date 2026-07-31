@@ -105,8 +105,15 @@ final class SettingsWindow: NSObject {
         if config.isEmpty {
             stack.addArrangedSubview(note("No facts declared yet - evolutions add entries here as behaviors need them."))
         }
+        var labels: [NSTextField] = []
         for (key, entry) in config {
-            stack.addArrangedSubview(configRow(key: key, entry: entry))
+            stack.addArrangedSubview(configRow(key: key, entry: entry, labels: &labels))
+        }
+        // Shared label column sized to the longest label, capped so a rogue
+        // schema label can't blow up the window.
+        let column = min(240, labels.map { $0.fittingSize.width }.max() ?? 160)
+        for label in labels {
+            label.widthAnchor.constraint(equalToConstant: column).isActive = true
         }
         stack.addArrangedSubview(note("Facts buddy's behaviors rely on. Your values live in ~/.buddy/config.json; evolutions add new ones and they show up here on their own."))
         return stack
@@ -190,7 +197,8 @@ final class SettingsWindow: NSObject {
         }.sorted { $0.0 < $1.0 }
     }
 
-    private func configRow(key: String, entry: [String: Any]) -> NSStackView {
+    private func configRow(key: String, entry: [String: Any],
+                           labels: inout [NSTextField]) -> NSStackView {
         let type = entry["type"] as? String ?? "text"
         let row = NSStackView()
         row.orientation = .horizontal
@@ -198,7 +206,7 @@ final class SettingsWindow: NSObject {
 
         let name = NSTextField(labelWithString: entry["label"] as? String ?? key)
         name.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
-        name.widthAnchor.constraint(equalToConstant: 160).isActive = true
+        labels.append(name)
         row.addArrangedSubview(name)
 
         let id = NSUserInterfaceItemIdentifier("cfg:\(key)")
