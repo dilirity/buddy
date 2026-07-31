@@ -115,11 +115,13 @@ final class SetupWindow: NSObject {
                         + "flip its switch on",
                         button: "Fix...") {
                     // The prompt call registers THIS binary in the
-                    // Accessibility list, then the pane opens for the switch.
+                    // Accessibility list and shows the system dialog, whose
+                    // "Open System Settings" button opens the right pane -
+                    // opening the pane ourselves as well doubled the ask.
+                    // macOS shows the dialog only once per registration; a
+                    // user who denied it can still reach the pane manually.
                     let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
                     AXIsProcessTrustedWithOptions(opts)
-                    NSWorkspace.shared.open(URL(string:
-                        "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
                 }
             }
         })
