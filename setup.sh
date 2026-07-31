@@ -162,6 +162,12 @@ rm -f "$APP/MacOS/Buddy"
 cp macos/.build/release/Buddy "$APP/MacOS/Buddy"
 echo "installed ~/Applications/Buddy.app"
 
+# CLI path is a symlink into the bundle (the VS Code `code` pattern): one
+# real binary, so the mutator's --check always validates the binary that
+# actually runs. Sandbox installs keep the earlier real copy - they have no
+# bundle.
+ln -sfn "$APP/MacOS/Buddy" "$BUDDY_HOME/bin/Buddy"
+
 # Autostart at login. RunAtLoad only - quitting from the menu stays quit.
 # A fresh account has no LaunchAgents dir yet.
 mkdir -p "$HOME/Library/LaunchAgents"
