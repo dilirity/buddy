@@ -114,20 +114,13 @@ final class SetupWindow: NSObject {
                         + "double-Esc panic (menu Freeze/Wake still works). Fix adds Buddy to the list; "
                         + "flip its switch on",
                         button: "Fix...") {
-                    // The prompt call registers THIS binary in the
-                    // Accessibility list and shows the system dialog, whose
-                    // "Open System Settings" button opens the right pane.
-                    // macOS re-shows that dialog on every call until granted,
-                    // so when System Settings is already up skip it and just
-                    // steer the open instance to the Accessibility pane.
-                    if NSWorkspace.shared.runningApplications
-                        .contains(where: { $0.bundleIdentifier == "com.apple.systempreferences" }) {
-                        NSWorkspace.shared.open(URL(string:
-                            "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
-                    } else {
-                        let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-                        AXIsProcessTrustedWithOptions(opts)
-                    }
+                    // The prompt call is the only API that (re)registers this
+                    // unsigned binary in the Accessibility list, so it must
+                    // run every time - even with System Settings already open,
+                    // where its dialog looks redundant. Its "Open System
+                    // Settings" button just activates the existing instance.
+                    let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+                    AXIsProcessTrustedWithOptions(opts)
                 }
             }
         })
