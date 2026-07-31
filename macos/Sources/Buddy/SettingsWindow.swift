@@ -14,7 +14,7 @@ final class SettingsWindow: NSObject {
     enum Tab: Int { case personality = 0, world = 1, system = 2 }
 
     private var window: NSWindow?
-    private var tabView: NSTabView?
+    private var tabController: NSTabViewController?
     private var valueLabels: [String: NSTextField] = [:]
     private var formats: [String: String] = [:]
 
@@ -23,8 +23,8 @@ final class SettingsWindow: NSObject {
         valueLabels.removeAll()
         formats.removeAll()
         build()
-        if let tabView, tab.rawValue < tabView.numberOfTabViewItems {
-            tabView.selectTabViewItem(at: tab.rawValue)
+        if let tabController, tab.rawValue < tabController.tabViewItems.count {
+            tabController.selectedTabViewItemIndex = tab.rawValue
         }
         NSApp.activate(ignoringOtherApps: true)
         window?.center()
@@ -32,12 +32,40 @@ final class SettingsWindow: NSObject {
     }
 
     private func build() {
-        let tabs = NSTabView()
-        tabs.addTabViewItem(tabItem("Personality", personalityPane()))
-        tabs.addTabViewItem(tabItem("Your World", worldPane()))
+        var panes: [(String, String, NSView)] = [
+            ("Personality", "face.smiling", personalityPane()),
+            ("Your World", "globe", worldPane()),
+        ]
         if let pane = systemPane {
-            let view = pane.makePaneView(visible: { [weak self] in self?.window?.isVisible == true })
-            tabs.addTabViewItem(tabItem("System", view))
+            panes.append(("System", "gearshape", pane.makePaneView(
+                visible: { [weak self] in self?.window?.isVisible == true })))
+        }
+
+        // The tab controller only measures the selected pane, so the shared
+        // width must be taken by measuring every pane up front; pinning them
+        // all to the max keeps tab switches from clipping or shifting
+        // horizontally. Height stays per-tab - the controller animates the
+        // window to the selected pane's depth on its own.
+        let width = panes.map { $0.2.fittingSize.width }.max() ?? Self.paneWidth
+        for (_, _, view) in panes {
+            view.widthAnchor.constraint(equalToConstant: width).isActive = true
+        }
+
+        // Toolbar-style tabs: the stock macOS settings-window chrome
+        // (Safari/Mail preferences) - no in-window bezel box.
+        let tabs = NSTabViewController()
+        tabs.tabStyle = .toolbar
+        for (label, symbol, view) in panes {
+            let vc = NSViewController()
+            vc.view = view
+            vc.title = label
+            // Without this the controller parks the window at its own default
+            // height instead of fitting (and animating to) each pane's depth.
+            vc.preferredContentSize = NSSize(width: width, height: view.fittingSize.height)
+            let item = NSTabViewItem(viewController: vc)
+            item.label = label
+            item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)
+            tabs.addTabViewItem(item)
         }
 
         let win = NSWindow(contentRect: .zero,
@@ -45,23 +73,13 @@ final class SettingsWindow: NSObject {
                            backing: .buffered, defer: false)
         win.title = "Buddy Settings"
         win.isReleasedWhenClosed = false
-        win.contentView = tabs
-        win.setContentSize(tabs.fittingSize)
-        tabView = tabs
+        win.contentViewController = tabs
+        tabController = tabs
         window = win
     }
 
-    private func tabItem(_ label: String, _ view: NSView) -> NSTabViewItem {
-        let item = NSTabViewItem(identifier: label)
-        item.label = label
-        item.view = view
-        return item
-    }
-
-    // One measure for wrapped text everywhere; the window width itself comes
-    // from the widest pane (System: 430 detail + insets) and the tab view
-    // stretches every pane to fill it - no fixed pane width, or the stack
-    // pins left and the slack collects as a right-side gap.
+    // Wrap measure for notes only - the window width is measured from the
+    // panes themselves in build().
     static let paneWidth: CGFloat = 470
 
     private func pane() -> NSStackView {
