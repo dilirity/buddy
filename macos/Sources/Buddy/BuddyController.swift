@@ -922,9 +922,9 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
 
     private static func loadTests(_ url: URL) -> [(String, String)] {
         guard let data = try? Data(contentsOf: url),
-              let list = (try? JSONSerialization.jsonObject(with: data)) as? [[String: String]] else { return [] }
+              let list = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]] else { return [] }
         return list.compactMap { t in
-            guard let id = t["id"], let title = t["title"] else { return nil }
+            guard let id = t["id"] as? String, let title = t["title"] as? String else { return nil }
             return (id, title)
         }
     }
