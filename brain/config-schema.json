@@ -1,5 +1,6 @@
 {
   "name": { "default": "", "type": "text", "label": "what buddy calls you" },
   "pronouns": { "default": "they/them", "type": "choice", "options": ["they/them", "she/her", "he/him"], "label": "your pronouns" },
-  "loves": { "default": [], "type": "list", "label": "shows, games, music you love" }
+  "loves": { "default": [], "type": "list", "label": "shows, games, music you love" },
+  "bodyColor": { "default": "green", "type": "choice", "options": ["green", "teal", "purple", "blue", "pink", "orange", "red"], "label": "buddy's color" }
 }

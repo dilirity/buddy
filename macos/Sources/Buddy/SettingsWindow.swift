@@ -10,6 +10,7 @@ import AppKit
 final class SettingsWindow: NSObject {
     // Injected by the controller (its providers are wired there).
     var systemPane: SetupWindow?
+    var onConfigSaved: ((String) -> Void)?
 
     enum Tab: Int { case personality = 0, world = 1, system = 2 }
 
@@ -352,6 +353,7 @@ final class SettingsWindow: NSObject {
         // Missing values file is normal (fresh install, or deleted by hand -
         // everything falls back to schema defaults); UserConfig recreates it.
         UserConfig.set(key, value)
+        onConfigSaved?(key)
     }
 
     private func saveTrait(_ name: String, value: Double) {

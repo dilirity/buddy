@@ -105,6 +105,11 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         setup.keyAccessProvider = { [weak self] in self?.keyAccessGranted ?? AXIsProcessTrusted() }
         setup.onSpendChanged = { [weak self] in self?.brain.spendConfigChanged() }
         settings.systemPane = setup
+        settings.onConfigSaved = { [weak self] key in
+            guard key == "bodyColor", let self else { return }
+            self.reloadSprites()
+            self.play("idle")
+        }
         setup.onOpenYourWorld = { [weak self] in self?.settings.show(tab: .world) }
         // Interview done -> hand off to the switches: permissions, chat,
         // evolution all live on the System tab and default to off.
@@ -705,7 +710,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
 
     // MARK: - Reload
 
-    func reloadBrainAndSprites() {
+    func reloadSprites() {
         if let loaded = SpriteLoader.load(from: BuddyPaths.sprites) {
             sheet = loaded
             let size = NSSize(width: sheet.pixelSize.width * scale, height: sheet.pixelSize.height * scale)
@@ -716,6 +721,10 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         currentAnim = ""
         pendingAnim = nil
         resetPresentation()
+    }
+
+    func reloadBrainAndSprites() {
+        reloadSprites()
         brain.reload()
         rebuildTestMenu()
         play("idle")

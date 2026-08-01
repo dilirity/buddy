@@ -23,6 +23,13 @@ enum SpriteLoader {
             guard let ch = k.first else { continue }
             palette[ch] = parseColor(v)
         }
+        // The human's picked body color (config "bodyColor") overrides the G/D
+        // body chars at load time - the brain keeps owning the canonical
+        // palette in sprites.json; this is the one human-owned knob (wishes.md).
+        if let tint = UserConfig.load()["bodyColor"] as? String, let (g, d) = bodyTints[tint] {
+            palette["G"] = parseColor(g)
+            palette["D"] = parseColor(d)
+        }
 
         var maxW = 0, maxH = 0
         var anims: [String: SpriteSheet.Anim] = [:]
@@ -54,6 +61,18 @@ enum SpriteLoader {
         }
         return SpriteSheet(anims: anims, props: props, pixelSize: CGSize(width: maxW, height: maxH))
     }
+
+    // Light/dark pairs per pickable color; "green" is absent on purpose - it
+    // means "leave the brain's palette alone", so buddy's own green evolutions
+    // still show through the default.
+    static let bodyTints: [String: (String, String)] = [
+        "teal": ("#3ecfc0", "#2a9a8e"),
+        "purple": ("#a06ee0", "#7a4cb0"),
+        "blue": ("#5aa0ff", "#3a74c8"),
+        "pink": ("#ff8fc0", "#d05a92"),
+        "orange": ("#ffa04a", "#cc7530"),
+        "red": ("#ff6a5e", "#c74438"),
+    ]
 
     // Last-resort sheet so the shell survives a mutator that mangles sprites.json.
     static func fallback() -> SpriteSheet {
