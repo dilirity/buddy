@@ -28,6 +28,27 @@ if ! command -v swift >/dev/null 2>&1; then
   echo "swift not found. Install Xcode Command Line Tools: xcode-select --install"
   exit 1
 fi
+# Package.swift is swift-tools-version:5.9, so Swift 5.9+ (Xcode 15 era) is required.
+SWIFT_VERSION="$(swift --version 2>/dev/null | sed -n 's/.*Swift version \([0-9]*\.[0-9]*\).*/\1/p' | head -1)"
+if [ -n "$SWIFT_VERSION" ] && [ "$(printf '%s\n' "5.9" "$SWIFT_VERSION" | sort -V | head -1)" != "5.9" ]; then
+  echo "Swift $SWIFT_VERSION found, but 5.9+ is required."
+  echo "Update Xcode Command Line Tools (Software Update, or reinstall with:"
+  echo "  sudo rm -rf /Library/Developer/CommandLineTools && xcode-select --install)"
+  exit 1
+fi
+echo "swift found: ${SWIFT_VERSION:-unknown version}"
+# A stale or broken Command Line Tools install (common after a macOS upgrade)
+# passes the checks above but can't even parse Package.swift - probe it now so
+# the failure is a clear message instead of raw linker errors mid-build.
+if ! (cd macos && swift package dump-package >/dev/null 2>&1); then
+  echo "Your Swift toolchain can't process this package - the Command Line Tools"
+  echo "install is likely stale or broken (often after a macOS upgrade). Fix with:"
+  echo "  sudo rm -rf /Library/Developer/CommandLineTools && xcode-select --install"
+  echo "or, if you have Xcode installed:"
+  echo "  sudo xcode-select -s /Applications/Xcode.app"
+  echo "Then re-run ./setup.sh."
+  exit 1
+fi
 if command -v claude >/dev/null 2>&1; then
   echo "claude found: $(claude --version 2>/dev/null || echo '(version unknown)')"
 else
