@@ -175,6 +175,21 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         commonTimer(3600, repeats: true) { [weak self] _ in
             self?.checkEvolutionStaleness()
         }
+        // launchd's 3:33 job drops slots missed while powered off, and its
+        // sleep catch-up is not guaranteed - so also check shortly after
+        // launch and on every wake. The delay gives launchd's own catch-up
+        // first claim on the lock and lets the network come up.
+        commonTimer(60, repeats: false) { [weak self] _ in
+            self?.checkEvolutionStaleness()
+        }
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: nil, queue: .main
+        ) { [weak self] _ in
+            commonTimer(60, repeats: false) { _ in
+                self?.checkEvolutionStaleness()
+            }
+        }
         ensurePhoneStream()
         commonTimer(30, repeats: true) { [weak self] _ in
             self?.ensurePhoneStream()
@@ -1015,20 +1030,27 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
     // Missed nights happen (no network on dark wake, laptop shut down).
     // If the last successful evolution is stale, run one ourselves.
     func checkEvolutionStaleness() {
-        guard !evolving, !isFrozen else { return }
-        // Catch-up only makes sense for a schedule; manual/off never auto-runs.
-        let staleAfter: TimeInterval
-        switch Spend.load().evolutionSchedule {
-        case "nightly": staleAfter = 26 * 3600
-        case "weekly": staleAfter = 8 * 24 * 3600
-        default: return
-        }
+        guard !evolving, !isFrozen, !OnboardingWindow.needed else { return }
         let url = BuddyPaths.home.appendingPathComponent("last-evolution")
         let last = (try? String(contentsOf: url, encoding: .utf8))
             .flatMap { Double($0.trimmingCharacters(in: .whitespacesAndNewlines)) } ?? 0
-        let age = Date().timeIntervalSince1970 - last
-        if age > staleAfter {
-            buddyLog("evolution stale (\(Int(age / 3600))h), auto-triggering")
+        let stale: Bool
+        // Catch-up only makes sense for a schedule; manual/off never auto-runs.
+        switch Spend.load().evolutionSchedule {
+        case "nightly":
+            // Stale = the most recent 3:33 slot passed with no success since,
+            // not a flat 26h - a flat window drifted later every day and left
+            // a missed night unrepaired for most of the next day.
+            var slot = Calendar.current.date(
+                bySettingHour: 3, minute: 33, second: 0, of: Date()) ?? Date()
+            if slot > Date() { slot.addTimeInterval(-86400) }
+            stale = last < slot.timeIntervalSince1970
+        case "weekly":
+            stale = Date().timeIntervalSince1970 - last > 8 * 24 * 3600
+        default: return
+        }
+        if stale {
+            buddyLog("evolution stale (last \(Int((Date().timeIntervalSince1970 - last) / 3600))h ago), auto-triggering")
             runEvolve()
         }
     }
