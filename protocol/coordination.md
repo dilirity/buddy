@@ -23,6 +23,10 @@ How one buddy roams across devices with no server. Companion to MULTI-DEVICE.md
   persist last-known `ip:port` per peer and dial those directly when mDNS is
   silent (Android NSD is flaky). ntfy poke is the final fallback to wake a
   peer that isn't announcing.
+- mDNS names are addresses, not identities. Records outlive dead processes
+  and get "(2)" renames on collisions, so a discovered endpoint counts as a
+  peer only after it answers a `hello` - the reply's `from` is the identity.
+  A record nobody answers from is ignored.
 - Default ports: TCP 47800, UDP heartbeat 47801. mDNS advertisement wins over
   defaults.
 

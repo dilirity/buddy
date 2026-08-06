@@ -34,7 +34,15 @@ final class Coordination {
     private let queue = DispatchQueue(label: "buddy.coord")
     private var listener: NWListener?
     private var browser: NWBrowser?
+    // Keyed by deviceId learned from hello replies, never by Bonjour name:
+    // names get "(2)" renames on collisions and records outlive dead
+    // processes, which once sent a travel to a dead port.
     private var peers: [String: NWEndpoint] = [:]
+    // Endpoints already probed, by stable description - re-probed only after
+    // the record drops off the browse results and returns.
+    private var helloed: Set<String> = []
+    // Outbound probe connections awaiting an identity (hello reply's `from`).
+    private var discovered: [ObjectIdentifier: NWEndpoint] = [:]
     // Main-thread mirror of peer names, for UI (menu) reads.
     private(set) var knownPeers: [String] = []
     private var peerHosts: [String: String] = [:]
@@ -99,28 +107,32 @@ final class Coordination {
         let b = NWBrowser(for: .bonjour(type: Coordination.serviceType, domain: nil), using: .tcp)
         b.browseResultsChangedHandler = { [weak self] results, _ in
             guard let self else { return }
-            var found: [String: NWEndpoint] = [:]
+            // Browse results are candidate addresses only; a peer enters
+            // `peers` when its endpoint answers a hello with a deviceId -
+            // which a stale record's dead endpoint cannot.
+            var candidates: [NWEndpoint] = []
             for r in results {
                 if case let .service(name, _, _, _) = r.endpoint, name != self.deviceId {
-                    found[name] = r.endpoint
+                    candidates.append(r.endpoint)
                 }
             }
-            let fresh = Set(found.keys).subtracting(self.peers.keys)
-            self.peers = found
+            let current = Set(candidates.map { "\($0)" })
+            // Only Bonjour-discovered peers answer to browse loss; peers bound
+            // via direct-IP probes (heartbeat path) are pruned by travel
+            // failures instead - browse can't vouch for endpoints it never saw.
+            let stale = self.peers.filter { entry in
+                if case .service = entry.value { return !current.contains("\(entry.value)") }
+                return false
+            }.map { $0.key }
+            for id in stale { self.peers.removeValue(forKey: id) }
+            if !stale.isEmpty { self.syncKnownPeers() }
             // Deliberately NOT pruning peerHosts on browse loss: cached IPs
             // are the fallback for exactly when discovery goes blind.
-            buddyLog("coord: peers \(Array(found.keys))")
-            let names = Array(found.keys).sorted()
-            DispatchQueue.main.async { self.knownPeers = names }
-            // Durable "this install has a second device" fact - the mutator's
-            // prompt assembly includes the phone section only when this exists.
-            if !found.isEmpty {
-                let marker = BuddyPaths.home.appendingPathComponent("peer-seen")
-                if !FileManager.default.fileExists(atPath: marker.path) {
-                    try? "\(Date().timeIntervalSince1970)\n".data(using: .utf8)?.write(to: marker)
-                }
+            self.helloed = self.helloed.filter { current.contains($0) || !$0.contains(Coordination.serviceType) }
+            for ep in candidates where !self.helloed.contains("\(ep)") {
+                self.helloed.insert("\(ep)")
+                self.hello(ep)
             }
-            for name in fresh { self.hello(name) }
         }
         b.start(queue: queue)
         browser = b
@@ -141,9 +153,28 @@ final class Coordination {
             l.newConnectionHandler = { [weak self] conn in
                 guard let self else { return }
                 conn.start(queue: self.queue)
-                conn.receiveMessage { data, _, _, _ in
-                    // Liveness intake only; nothing acts on it on the mac.
-                    _ = data
+                conn.receiveMessage { [weak self] data, _, _, _ in
+                    // Heartbeats arrive every 3s with no multicast involved,
+                    // so they are the discovery path that keeps working when
+                    // the phone's screen-off wifi filters mDNS. Record the
+                    // sender's IP and, if we have no verified endpoint for it
+                    // yet, probe the standard port directly.
+                    if let self, let data,
+                       let frame = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+                       frame["s"] as? String == Coordination.secret,
+                       let from = frame["from"] as? String, from != self.deviceId,
+                       case let .hostPort(host, _)? = conn.currentPath?.remoteEndpoint {
+                        let ip = "\(host)".components(separatedBy: "%").first ?? "\(host)"
+                        self.peerHosts[from] = ip
+                        if self.peers[from] == nil {
+                            let ep = NWEndpoint.hostPort(host: NWEndpoint.Host(ip),
+                                                         port: NWEndpoint.Port(rawValue: Coordination.port)!)
+                            if !self.helloed.contains("\(ep)") {
+                                self.helloed.insert("\(ep)")
+                                self.hello(ep)
+                            }
+                        }
+                    }
                     conn.cancel()
                 }
             }
@@ -210,22 +241,21 @@ final class Coordination {
         }
     }
 
-    // On meeting a peer: exchange hellos so a stale device learns the current
-    // epoch before doing anything (cold-start grace + zombie correction).
-    private func hello(_ name: String) {
-        guard let endpoint = peers[name] else { return }
+    // Probe a discovered endpoint: exchange hellos so a stale device learns
+    // the current epoch before doing anything (cold-start grace + zombie
+    // correction), and so the reply's deviceId binds identity to the endpoint.
+    private func hello(_ endpoint: NWEndpoint) {
         let conn = NWConnection(to: endpoint, using: .tcp)
-        conn.stateUpdateHandler = { [weak self] state in
-            guard let self, case .ready = state else { return }
-            // Remember the peer's raw IP: heartbeats are UDP to host:hbPort,
-            // and cached IPs double as the discovery fallback.
-            if case let .hostPort(host, _)? = conn.currentPath?.remoteEndpoint {
-                self.peerHosts[name] = "\(host)".components(separatedBy: "%").first ?? "\(host)"
-            }
-        }
+        discovered[ObjectIdentifier(conn)] = endpoint
         adoptForFrames(conn)
         conn.start(queue: queue)
         send(["type": "hello", "epoch": epoch], on: conn)
+    }
+
+    private func syncKnownPeers() {
+        let names = Array(peers.keys).sorted()
+        buddyLog("coord: peers \(names)")
+        DispatchQueue.main.async { self.knownPeers = names }
     }
 
     private func adoptForFrames(_ conn: NWConnection) {
@@ -253,6 +283,7 @@ final class Coordination {
             }
             if done || err != nil {
                 self.connections.removeAll { $0 === conn }
+                self.discovered.removeValue(forKey: ObjectIdentifier(conn))
                 conn.cancel()
             } else {
                 self.receiveLines(conn, buffer: buf)
@@ -274,6 +305,28 @@ final class Coordination {
 
     private func handle(_ frame: [String: Any], on conn: NWConnection) {
         guard frame["s"] as? String == Coordination.secret else { return }
+        if let from = frame["from"] as? String, from != deviceId {
+            // Remember the sender's raw IP: heartbeats are UDP to host:hbPort,
+            // and cached IPs double as the discovery fallback.
+            if case let .hostPort(host, _)? = conn.currentPath?.remoteEndpoint {
+                peerHosts[from] = "\(host)".components(separatedBy: "%").first ?? "\(host)"
+            }
+            // Outbound probe answered: this endpoint IS that device.
+            if let ep = discovered[ObjectIdentifier(conn)] {
+                let changed = peers[from].map { "\($0)" != "\(ep)" } ?? true
+                peers[from] = ep
+                if changed {
+                    syncKnownPeers()
+                    // Durable "this install has a second device" fact - the
+                    // mutator's prompt assembly includes the phone section
+                    // only when this exists.
+                    let marker = BuddyPaths.home.appendingPathComponent("peer-seen")
+                    if !FileManager.default.fileExists(atPath: marker.path) {
+                        try? "\(Date().timeIntervalSince1970)\n".data(using: .utf8)?.write(to: marker)
+                    }
+                }
+            }
+        }
         let fEpoch = (frame["epoch"] as? NSNumber)?.intValue ?? -1
         let type = frame["type"] as? String ?? ""
 
@@ -350,9 +403,19 @@ final class Coordination {
     // if the target acked and buddy is gone from here.
     func travel(payload: [String: Any], completion: @escaping (Bool) -> Void) {
         queue.async {
-            guard self.ownsBuddy, let (_, endpoint) = self.peers.first else {
+            guard self.ownsBuddy, let (target, verified) = self.peers.first else {
                 DispatchQueue.main.async { completion(false) }
                 return
+            }
+            // Dial the cached IP directly when we have one: connecting to a
+            // Bonjour endpoint resolves via multicast, which a screen-off
+            // phone's wifi silently filters. Heartbeats keep the IP fresh.
+            let endpoint: NWEndpoint
+            if let ip = self.peerHosts[target] {
+                endpoint = .hostPort(host: NWEndpoint.Host(ip),
+                                     port: NWEndpoint.Port(rawValue: Coordination.port)!)
+            } else {
+                endpoint = verified
             }
             let proposed = self.epoch + 1
             let conn = NWConnection(to: endpoint, using: .tcp)
@@ -368,13 +431,17 @@ final class Coordination {
                     DispatchQueue.main.async { self.onDepart?() }
                 } else {
                     conn.cancel()
+                    // No answer = endpoint is gone; forget it so the next
+                    // rediscovery has to re-earn its place with a hello.
+                    self.peers.removeValue(forKey: target)
+                    self.helloed.remove("\(endpoint)")
+                    self.syncKnownPeers()
                     buddyLog("coord: travel out failed/timeout")
                 }
                 DispatchQueue.main.async { completion(ok) }
             }
             self.adoptForAck(conn, expecting: proposed, finish: finish)
             conn.start(queue: self.queue)
-            let target = self.peers.first?.0 ?? "phone"
             self.send(["type": "travel", "epoch": proposed, "to": target,
                        "payload": payload], on: conn)
             self.queue.asyncAfter(deadline: .now() + 10) { finish(false) }

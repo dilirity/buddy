@@ -54,6 +54,10 @@ class Coordination(context: Context, private val onUi: Handler = Handler(Looper.
 
     private val appContext = context
     private val nsd = context.getSystemService(Context.NSD_SERVICE) as NsdManager
+    private var regListener: NsdManager.RegistrationListener? = null
+    // Screen-off wifi filters multicast; without this lock the phone stops
+    // answering mDNS the moment the screen sleeps.
+    private var mcastLock: android.net.wifi.WifiManager.MulticastLock? = null
     private var server: ServerSocket? = null
     @Volatile private var peerHost: String? = null
     @Volatile private var peerPort: Int = 0
@@ -68,6 +72,16 @@ class Coordination(context: Context, private val onUi: Handler = Handler(Looper.
         set(v) { prefs.edit().putString("snapshot", v.toString()).apply() }
 
     fun start() {
+        prefs.getString("peerHost", null)?.let {
+            peerHost = it
+            peerPort = prefs.getInt("peerPort", PORT)
+        }
+        val wifi = appContext.applicationContext
+            .getSystemService(Context.WIFI_SERVICE) as android.net.wifi.WifiManager
+        mcastLock = wifi.createMulticastLock("buddy-mdns").apply {
+            setReferenceCounted(false)
+            acquire()
+        }
         server = ServerSocket(PORT)
         Thread {
             while (running) {
@@ -85,28 +99,30 @@ class Coordination(context: Context, private val onUi: Handler = Handler(Looper.
             serviceType = SERVICE_TYPE
             port = PORT
         }
-        nsd.registerService(info, NsdManager.PROTOCOL_DNS_SD, object : NsdManager.RegistrationListener {
+        val reg = object : NsdManager.RegistrationListener {
             override fun onServiceRegistered(i: NsdServiceInfo) { Log.i(TAG, "registered ${i.serviceName}") }
             override fun onRegistrationFailed(i: NsdServiceInfo, e: Int) { Log.w(TAG, "register failed $e") }
             override fun onServiceUnregistered(i: NsdServiceInfo) {}
             override fun onUnregistrationFailed(i: NsdServiceInfo, e: Int) {}
-        })
+        }
+        regListener = reg
+        nsd.registerService(info, NsdManager.PROTOCOL_DNS_SD, reg)
 
         nsd.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, object : NsdManager.DiscoveryListener {
             override fun onServiceFound(s: NsdServiceInfo) {
-                if (s.serviceName.startsWith("phone")) return
+                // Names are not identities (collision renames, stale records):
+                // probe every record and let the hello reply's deviceId decide.
                 nsd.resolveService(s, object : NsdManager.ResolveListener {
                     override fun onServiceResolved(r: NsdServiceInfo) {
-                        peerHost = r.host?.hostAddress
-                        peerPort = r.port
-                        BuddyService.peerOnline = true
-                        Log.i(TAG, "peer ${r.serviceName} at $peerHost:$peerPort")
+                        val host = r.host?.hostAddress ?: return
+                        probe(host, r.port)
                     }
                     override fun onResolveFailed(i: NsdServiceInfo, e: Int) { Log.w(TAG, "resolve failed $e") }
                 })
             }
             override fun onServiceLost(s: NsdServiceInfo) {
-                if (!s.serviceName.startsWith("phone")) { peerHost = null; BuddyService.peerOnline = false }
+                // A lost record's identity is unknowable from its name;
+                // peer liveness comes from heartbeat recency instead.
             }
             override fun onDiscoveryStarted(t: String) {}
             override fun onDiscoveryStopped(t: String) {}
@@ -119,8 +135,42 @@ class Coordination(context: Context, private val onUi: Handler = Handler(Looper.
 
     fun stop() {
         running = false
+        // Withdraw the mDNS record: an announcement lingering after death is
+        // exactly what once sent the mac's travel to a dead port.
+        regListener?.let { try { nsd.unregisterService(it) } catch (_: Exception) {} }
+        regListener = null
+        try { mcastLock?.release() } catch (_: Exception) {}
         try { server?.close() } catch (_: Exception) {}
         try { hbSocket?.close() } catch (_: Exception) {}
+    }
+
+    // Hello the endpoint; adopt it as the peer only when the reply carries
+    // someone else's deviceId - our own records answer as "phone".
+    private fun probe(host: String, port: Int) {
+        Thread {
+            try {
+                val sock = Socket()
+                sock.connect(InetSocketAddress(host, port), 5000)
+                sock.soTimeout = 5000
+                send(sock, JSONObject().put("type", "hello").put("epoch", epoch))
+                val reader = BufferedReader(InputStreamReader(sock.getInputStream()))
+                val line = reader.readLine()
+                sock.close()
+                val frame = try { JSONObject(line ?: return@Thread) } catch (e: Exception) { return@Thread }
+                if (frame.optString("s") != secret) return@Thread
+                val from = frame.optString("from")
+                if (from.isEmpty() || from == "phone") return@Thread
+                peerHost = host
+                peerPort = port
+                // Last-known address survives process death: heartbeats can
+                // resume immediately on restart, before (or without) mDNS.
+                prefs.edit().putString("peerHost", host).putInt("peerPort", port).apply()
+                BuddyService.peerOnline = true
+                Log.i(TAG, "peer $from at $host:$port")
+            } catch (e: Exception) {
+                Log.w(TAG, "probe $host:$port: $e")
+            }
+        }.start()
     }
 
     // MARK: - Heartbeats + crash election
@@ -145,6 +195,7 @@ class Coordination(context: Context, private val onUi: Handler = Handler(Looper.
                     macLastSeen = System.currentTimeMillis()
                     macOwns = frame.optBoolean("owner", false)
                     macEpoch = frame.optInt("epoch", 0)
+                    BuddyService.peerOnline = true
                 }
             } catch (e: Exception) {
                 if (running) Log.w(TAG, "hb listen: $e")
@@ -168,6 +219,10 @@ class Coordination(context: Context, private val onUi: Handler = Handler(Looper.
                         }
                     } catch (e: Exception) { Log.w(TAG, "hb send: $e") }
                 }
+                // Silence-based only after the mac has been heard at least
+                // once - before that, the probe's verdict stands.
+                if (macLastSeen != 0L)
+                    BuddyService.peerOnline = System.currentTimeMillis() - macLastSeen < SILENCE_MS
                 checkElection()
             }
         }.start()
@@ -183,6 +238,16 @@ class Coordination(context: Context, private val onUi: Handler = Handler(Looper.
         if (!macOwns) return
         if (macLastSeen == 0L) return
         if (System.currentTimeMillis() - macLastSeen < SILENCE_MS) return
+        // Off wifi, WE left the network - the mac didn't die. Election is for
+        // a crashed mac observed from inside the same LAN; electing here once
+        // resurrected a second buddy while the real one lived on.
+        if (!onWifi()) return
+        // Heartbeat silence proves nothing while TCP still answers: UDP can
+        // die alone (stale IP, VPN routing) with the mac perfectly alive.
+        if (macAnswersTcp()) {
+            macLastSeen = System.currentTimeMillis()
+            return
+        }
         val claimed = maxOf(epoch, macEpoch) + 1
         epoch = claimed
         ownsBuddy = true
@@ -190,6 +255,21 @@ class Coordination(context: Context, private val onUi: Handler = Handler(Looper.
         Log.i(TAG, "emergency claim, epoch $claimed (mac silent)")
         val snapshot = lastSnapshot
         onUi.post { onEmergencyClaim?.invoke(snapshot) }
+    }
+
+    private fun onWifi(): Boolean {
+        val cm = appContext.getSystemService(Context.CONNECTIVITY_SERVICE)
+            as android.net.ConnectivityManager
+        val caps = cm.getNetworkCapabilities(cm.activeNetwork) ?: return false
+        return caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI)
+    }
+
+    private fun macAnswersTcp(): Boolean {
+        val host = peerHost ?: return false
+        return try {
+            Socket().use { it.connect(InetSocketAddress(host, peerPort), 4000) }
+            true
+        } catch (e: Exception) { false }
     }
 
     val hasPeer: Boolean get() = peerHost != null
