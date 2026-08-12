@@ -15,6 +15,10 @@ enum BuddyPaths {
     static let brain = home.appendingPathComponent("brain")
     static let sprites = brain.appendingPathComponent("sprites.json")
     static let persona = brain.appendingPathComponent("persona.md")
+    // Sfx whitelist = this directory's contents. Deliberately outside the
+    // brain repo: the mutator must not be able to add sounds, only play
+    // the ones the human installed.
+    static let sounds = home.appendingPathComponent("sounds")
     static let traits = home.appendingPathComponent("traits.json")
     static let invariants = home.appendingPathComponent("invariants.json")
     static let memory = home.appendingPathComponent("memory.json")

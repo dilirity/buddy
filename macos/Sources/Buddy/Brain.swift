@@ -139,7 +139,8 @@ final class Brain {
         // falls back to canned lines, exactly like a device with no claude.
         let caps: @convention(block) () -> [String: Bool] = {
             ["cursor": true, "windows": true, "layer": true, "music": true, "glyph": false,
-             "think": Spend.load().chatEnabled, "phonePush": true, "feedback": true, "claudeEvents": true]
+             "think": Spend.load().chatEnabled, "phonePush": true, "feedback": true, "claudeEvents": true,
+             "sfx": true]
         }
         set("caps", caps)
 
@@ -154,6 +155,13 @@ final class Brain {
             self?.controller?.play(name)
         }
         set("play", play)
+
+        // Granted wish: short whitelisted sound (~/.buddy/sounds/<name>.wav).
+        // Disruption-budgeted; returns false when denied or unknown.
+        let sfxJS: @convention(block) (String) -> Bool = { [weak self] name in
+            self?.controller?.sfx(name) ?? false
+        }
+        set("sfx", sfxJS)
 
         let moveTo: @convention(block) (Double, Double, Double) -> Void = { [weak self] x, y, speed in
             self?.controller?.moveTo(NSPoint(x: x, y: y), speed: speed > 0 ? speed : 120)

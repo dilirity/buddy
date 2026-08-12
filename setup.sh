@@ -68,6 +68,10 @@ cp macos/bin/activity-report "$BUDDY_HOME/bin/activity-report"
 chmod +x "$BUDDY_HOME/bin/activity-report"
 chmod +x "$BUDDY_HOME/bin/buddy-hook"
 
+# Sfx whitelist - shell assets like the binary, so overwriting is correct.
+mkdir -p "$BUDDY_HOME/sounds"
+cp sounds/*.wav "$BUDDY_HOME/sounds/"
+
 # Seed the live brain without overwriting an evolved one.
 mkdir -p "$BUDDY_HOME/brain"
 for f in brain/*; do

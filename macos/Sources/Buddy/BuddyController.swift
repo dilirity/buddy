@@ -814,6 +814,31 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         return true
     }
 
+    // Granted wish: one short whitelisted sound effect. The whitelist is
+    // whatever the human installed in ~/.buddy/sounds - the brain can name
+    // sounds but never add them. Spends disruption budget like any noise.
+    private var currentSfx: NSSound?
+
+    func sfx(_ name: String) -> Bool {
+        guard !buddyAway,
+              !name.isEmpty,
+              name.unicodeScalars.allSatisfy({ CharacterSet.alphanumerics.contains($0) || $0 == "-" }),
+              case let url = BuddyPaths.sounds.appendingPathComponent(name + ".wav"),
+              FileManager.default.fileExists(atPath: url.path) else {
+            buddyActivity("sfx", ["name": name, "allowed": false])
+            return false
+        }
+        let allowed = allowDisruptive()
+        buddyActivity("sfx", ["name": name, "allowed": allowed])
+        guard allowed, let sound = NSSound(contentsOf: url, byReference: true) else { return false }
+        // Kept in a property: NSSound is not self-retaining during playback.
+        currentSfx?.stop()
+        sound.volume = 0.5
+        sound.play()
+        currentSfx = sound
+        return true
+    }
+
     // Live Accessibility state - the permission that gates the global key
     // monitor (typing sense, double-Esc panic; NSEvent global key monitors
     // are accessibility-trust APIs). Cursor tricks need no macOS permission;
