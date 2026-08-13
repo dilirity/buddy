@@ -143,7 +143,7 @@ final class Brain {
         let caps: @convention(block) () -> [String: Bool] = {
             ["cursor": true, "windows": true, "layer": true, "music": true, "glyph": false,
              "think": Spend.load().chatEnabled, "phonePush": true, "feedback": true, "claudeEvents": true,
-             "sfx": true, "place": true]
+             "sfx": true, "place": true, "wear": true]
         }
         set("caps", caps)
 
@@ -335,10 +335,19 @@ final class Brain {
         }
         set("placeSwap", placeSwapJS)
 
+        // wear(slot, name) - persistent accessory in a named slot ("hand" or
+        // "head"), independent of speech: unlike a say() prop it survives the
+        // bubble hiding and later prop-less says. wear(slot, null) removes it.
+        // Returns false on unknown slot or prop.
+        let wearJS: @convention(block) (String, JSValue) -> Bool = { [weak self] slot, v in
+            self?.controller?.wear(slot, v.isString ? v.toString() : nil) ?? false
+        }
+        set("wear", wearJS)
+
         // buddy.prop("glasses") dons an accessory from sprites.json props;
-        // buddy.prop(null) removes it.
+        // buddy.prop(null) removes it. Legacy alias for wear("hand", ...).
         let propJS: @convention(block) (JSValue) -> Void = { [weak self] v in
-            self?.controller?.setProp(v.isString ? v.toString() : nil)
+            self?.controller?.wear("hand", v.isString ? v.toString() : nil)
         }
         set("prop", propJS)
 

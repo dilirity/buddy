@@ -41,9 +41,10 @@ final class SpriteView: NSView {
     // a window that never moves during the drag.
     private var carrying = false
     private let sprite = CALayer()
-    // Accessory overlay (glasses, hats, ...) - sublayer of sprite so facing
-    // flips carry it along automatically.
-    private let prop = CALayer()
+    // Accessory overlays (held item, headwear) - sublayers of sprite so facing
+    // flips carry them along automatically. Fixed slots; hand draws below head.
+    static let propSlots = ["hand", "head"]
+    private var propLayers: [String: CALayer] = [:]
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -51,10 +52,14 @@ final class SpriteView: NSView {
         sprite.magnificationFilter = .nearest
         sprite.minificationFilter = .nearest
         sprite.frame = bounds
-        prop.magnificationFilter = .nearest
-        prop.minificationFilter = .nearest
-        prop.frame = sprite.bounds
-        sprite.addSublayer(prop)
+        for slot in SpriteView.propSlots {
+            let prop = CALayer()
+            prop.magnificationFilter = .nearest
+            prop.minificationFilter = .nearest
+            prop.frame = sprite.bounds
+            sprite.addSublayer(prop)
+            propLayers[slot] = prop
+        }
         layer?.addSublayer(sprite)
     }
 
@@ -66,7 +71,7 @@ final class SpriteView: NSView {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         sprite.frame = bounds
-        prop.frame = sprite.bounds
+        propLayers.values.forEach { $0.frame = sprite.bounds }
         CATransaction.commit()
     }
 
@@ -85,7 +90,7 @@ final class SpriteView: NSView {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         sprite.frame = bounds
-        prop.frame = sprite.bounds
+        propLayers.values.forEach { $0.frame = sprite.bounds }
         CATransaction.commit()
     }
 
@@ -96,10 +101,11 @@ final class SpriteView: NSView {
         CATransaction.commit()
     }
 
-    func setProp(_ img: CGImage?) {
+    func setProp(_ img: CGImage?, slot: String) {
+        guard let layer = propLayers[slot] else { return }
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        prop.contents = img
+        layer.contents = img
         CATransaction.commit()
     }
 

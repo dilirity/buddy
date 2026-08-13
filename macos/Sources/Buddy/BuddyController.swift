@@ -86,7 +86,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         }
         panel.orderFrontRegardless()
 
-        bubble.onHide = { [weak self] in self?.setProp(nil) }
+        bubble.onHide = { [weak self] in self?.stripSayWornProp() }
         talk.onSubmit = { [weak self] text in
             guard let self else { return }
             self.play("scheming")
@@ -283,12 +283,28 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
 
     var isMovingNow: Bool { moveTimer != nil }
 
-    func setProp(_ name: String?) {
-        guard let name, !name.isEmpty, let img = sheet.props[name] else {
-            view.setProp(nil)
-            return
+    // Worn accessories, decoupled from speech: wear() persists until changed
+    // or removed, while a say(prop:) is stripped when its bubble hides. The
+    // flag tells the two apart so a bubble hiding never undresses a wear().
+    private var sayWornHand = false
+
+    @discardableResult
+    func wear(_ slot: String, _ name: String?) -> Bool {
+        guard SpriteView.propSlots.contains(slot) else { return false }
+        if slot == "hand" { sayWornHand = false }
+        guard let name, !name.isEmpty else {
+            view.setProp(nil, slot: slot)
+            return true
         }
-        view.setProp(img)
+        guard let img = sheet.props[name] else { return false }
+        view.setProp(img, slot: slot)
+        return true
+    }
+
+    func stripSayWornProp() {
+        guard sayWornHand else { return }
+        sayWornHand = false
+        view.setProp(nil, slot: "hand")
     }
 
     // MARK: - Placed props (granted wish)
@@ -621,9 +637,14 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
     func say(_ text: String, seconds: Double, prop propName: String? = nil) {
         guard !isFrozen, !buddyAway else { return }
         buddyActivity("say", ["text": text, "prop": propName ?? ""])
-        // The prop lives and dies with the line: replaced by the next say,
-        // stripped when the bubble hides. No parallel cleanup timers.
-        setProp(propName)
+        // A say prop lives and dies with the line: replaced by the next say,
+        // stripped when the bubble hides. A wear()-worn hand prop is left alone.
+        if let propName, !propName.isEmpty, let img = sheet.props[propName] {
+            view.setProp(img, slot: "hand")
+            sayWornHand = true
+        } else {
+            stripSayWornProp()
+        }
         // Behaviors can ask for longer, never shorter than a readable duration.
         let minRead = 1.5 + Double(text.count) * 0.06
         bubble.show(text, near: panel.frame, seconds: max(seconds, minRead))
@@ -737,7 +758,8 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         stopMoving()
         setOpacity(1)
         setLayer(behind: false)
-        setProp(nil)
+        sayWornHand = false
+        for slot in SpriteView.propSlots { view.setProp(nil, slot: slot) }
     }
 
     // Clamped so buddy can never turn fully invisible; auto-restores.
