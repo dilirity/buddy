@@ -123,6 +123,8 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
             self.stopMoving()
             self.bubble.hide()
             self.panel.orderOut(nil)
+            // One buddy, ever: his stuff leaves the screen with him.
+            self.setPlacementsVisible(false)
             buddyActivity("travelOut")
             self.brain.emit("travelDeparted")
         }
@@ -135,6 +137,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
             }
             buddyActivity("travelIn")
             self.resetPresentation()
+            self.setPlacementsVisible(true)
             self.panel.orderFrontRegardless()
             self.play("excited")
             if let line = payload["line"] as? String { self.say(line, seconds: 5) }
@@ -286,6 +289,79 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
             return
         }
         view.setProp(img)
+    }
+
+    // MARK: - Placed props (granted wish)
+
+    // Persistent decals: a prop pinned to the screen until removed. Unlike a
+    // worn prop these outlive the act that made them - the whole point is a
+    // hoard pile that survives across days. State is the brain's job
+    // (memory.json); the shell only draws, so a brain reload clears the
+    // panels and the brain re-places from memory.
+    private struct Placement {
+        let name: String
+        let panel: BuddyPanel
+        let layer: CALayer
+    }
+    private var placements: [Int: Placement] = [:]
+    private var nextPlacementId = 1
+    // Above the hoard cap (10) but low enough that a runaway mutation can
+    // never wallpaper the screen.
+    private let maxPlacements = 12
+
+    func place(_ name: String, x: Double, y: Double) -> Int {
+        guard !buddyAway, !isFrozen, !evolving,
+              x.isFinite, y.isFinite,
+              let img = sheet.props[name],
+              placements.count < maxPlacements else {
+            buddyActivity("place", ["name": name, "allowed": false])
+            return 0
+        }
+        let size = NSSize(width: CGFloat(img.width) * scale, height: CGFloat(img.height) * scale)
+        var origin = NSPoint(x: x, y: y)
+        let screen = NSScreen.screens.first { $0.frame.contains(origin) } ?? NSScreen.main
+        if let vis = screen?.visibleFrame {
+            origin.x = min(max(origin.x, vis.minX), vis.maxX - size.width)
+            origin.y = min(max(origin.y, vis.minY), vis.maxY - size.height)
+        }
+        let p = BuddyPanel(size: size)
+        p.ignoresMouseEvents = true
+        let holder = NSView(frame: NSRect(origin: .zero, size: size))
+        holder.wantsLayer = true
+        let l = CALayer()
+        l.magnificationFilter = .nearest
+        l.minificationFilter = .nearest
+        l.frame = holder.bounds
+        l.contents = img
+        holder.layer?.addSublayer(l)
+        p.contentView = holder
+        p.setFrameOrigin(origin)
+        p.orderFrontRegardless()
+        let id = nextPlacementId
+        nextPlacementId += 1
+        placements[id] = Placement(name: name, panel: p, layer: l)
+        buddyActivity("place", ["name": name, "x": Double(origin.x), "y": Double(origin.y),
+                                "id": id, "allowed": true])
+        return id
+    }
+
+    func unplace(_ id: Int) {
+        guard let pl = placements.removeValue(forKey: id) else { return }
+        pl.panel.orderOut(nil)
+        buddyActivity("unplace", ["id": id])
+    }
+
+    func unplaceAll() {
+        guard !placements.isEmpty else { return }
+        for pl in placements.values { pl.panel.orderOut(nil) }
+        placements.removeAll()
+        buddyActivity("unplaceAll")
+    }
+
+    private func setPlacementsVisible(_ visible: Bool) {
+        for pl in placements.values {
+            if visible { pl.panel.orderFrontRegardless() } else { pl.panel.orderOut(nil) }
+        }
     }
 
     func moveTo(_ target: NSPoint, speed: Double) {
@@ -735,6 +811,18 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         }
         currentAnim = ""
         pendingAnim = nil
+        // Re-render placed props from the new sheet (body-color change);
+        // drop any whose prop no longer exists.
+        for (id, pl) in placements {
+            if let img = sheet.props[pl.name] {
+                CATransaction.begin()
+                CATransaction.setDisableActions(true)
+                pl.layer.contents = img
+                CATransaction.commit()
+            } else {
+                unplace(id)
+            }
+        }
         resetPresentation()
     }
 

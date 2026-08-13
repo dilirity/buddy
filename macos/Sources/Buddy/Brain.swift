@@ -47,6 +47,9 @@ final class Brain {
         for (_, t) in timers { t.invalidate() }
         timers.removeAll()
         handlers.removeAll()
+        // Placed props belong to the outgoing brain's acts; the new brain
+        // re-places from memory, so clear instead of duplicating.
+        controller?.unplaceAll()
         loadMemory()
         // Persona may have evolved - restart the warm think sessions on it.
         think.reset()
@@ -140,7 +143,7 @@ final class Brain {
         let caps: @convention(block) () -> [String: Bool] = {
             ["cursor": true, "windows": true, "layer": true, "music": true, "glyph": false,
              "think": Spend.load().chatEnabled, "phonePush": true, "feedback": true, "claudeEvents": true,
-             "sfx": true]
+             "sfx": true, "place": true]
         }
         set("caps", caps)
 
@@ -296,6 +299,25 @@ final class Brain {
         // Nothing Phone glyph lights - real only on the phone; stub here.
         let glyphJS: @convention(block) (Double) -> Void = { _ in }
         set("glyph", glyphJS)
+
+        // Granted wish: persistent placed props (the hoard made visible).
+        // place(name, x, y) pins a sprites.json prop to the screen until
+        // removed - returns an id, 0 when refused (unknown prop, cap hit,
+        // frozen/evolving/away). unplace(id) removes one; unplace() all.
+        // Placements do not survive a brain reload - re-place from memory.
+        let placeJS: @convention(block) (String, Double, Double) -> Int = { [weak self] name, x, y in
+            self?.controller?.place(name, x: x, y: y) ?? 0
+        }
+        set("place", placeJS)
+
+        let unplaceJS: @convention(block) (JSValue) -> Void = { [weak self] v in
+            if v.isNumber {
+                self?.controller?.unplace(Int(truncating: v.toNumber()))
+            } else {
+                self?.controller?.unplaceAll()
+            }
+        }
+        set("unplace", unplaceJS)
 
         // buddy.prop("glasses") dons an accessory from sprites.json props;
         // buddy.prop(null) removes it.
