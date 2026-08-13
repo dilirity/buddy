@@ -302,6 +302,11 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         let name: String
         let panel: BuddyPanel
         let layer: CALayer
+        // Crop insets of the visible art inside its authoring canvas (canvas
+        // px, Cocoa-side bottom) - placeSwap uses them to keep swapped art
+        // registered as drawn instead of snapping to the old corner.
+        let cropX: CGFloat
+        let cropBottom: CGFloat
     }
 
     // Granted wish (round two): placed props answer the mouse. A click pokes,
@@ -348,10 +353,10 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
     // Props are authored on buddy-sized canvases (worn-overlay alignment),
     // mostly transparent. A placed prop must occupy only its visible pixels -
     // for hit-testing and so the art sits exactly where asked.
-    private func croppedToVisible(_ img: CGImage) -> CGImage? {
+    private func croppedToVisible(_ img: CGImage) -> (img: CGImage, cropX: CGFloat, cropBottom: CGFloat)? {
         let w = img.width, h = img.height
         guard let data = img.dataProvider?.data, let ptr = CFDataGetBytePtr(data),
-              img.bitsPerPixel == 32 else { return img }
+              img.bitsPerPixel == 32 else { return (img, 0, 0) }
         let bpr = img.bytesPerRow
         var minX = w, minY = h, maxX = -1, maxY = -1
         for y in 0..<h {
@@ -362,16 +367,20 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
                 if y > maxY { maxY = y }
             }
         }
-        guard maxX >= minX, maxY >= minY else { return nil }
-        return img.cropping(to: CGRect(x: minX, y: minY,
-                                       width: maxX - minX + 1, height: maxY - minY + 1))
+        guard maxX >= minX, maxY >= minY,
+              let cropped = img.cropping(to: CGRect(x: minX, y: minY,
+                                                    width: maxX - minX + 1, height: maxY - minY + 1))
+        else { return nil }
+        // Image rows are top-down; Cocoa's y grows upward, so the bottom
+        // inset is measured from the canvas's last row.
+        return (cropped, CGFloat(minX), CGFloat(h - 1 - maxY))
     }
 
     func place(_ name: String, x: Double, y: Double) -> Int {
         guard !buddyAway, !isFrozen, !evolving,
               x.isFinite, y.isFinite,
               let raw = sheet.props[name],
-              let img = croppedToVisible(raw),
+              let (img, cropX, cropBottom) = croppedToVisible(raw),
               placements.count < maxPlacements else {
             buddyActivity("place", ["name": name, "allowed": false])
             return 0
@@ -419,7 +428,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
             buddyActivity("placementMoved", ["id": id, "name": pl.name, "x": Double(o.x), "y": Double(o.y)])
             self.brain.emit("placementMoved", ["id": id, "name": pl.name, "x": Double(o.x), "y": Double(o.y)])
         }
-        placements[id] = Placement(name: name, panel: p, layer: l)
+        placements[id] = Placement(name: name, panel: p, layer: l, cropX: cropX, cropBottom: cropBottom)
         buddyActivity("place", ["name": name, "x": Double(origin.x), "y": Double(origin.y),
                                 "id": id, "allowed": true])
         return id
@@ -449,12 +458,16 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         guard !buddyAway, !isFrozen, !evolving,
               let pl = placements[id],
               let raw = sheet.props[name],
-              let img = croppedToVisible(raw) else {
+              let (img, cropX, cropBottom) = croppedToVisible(raw) else {
             buddyActivity("placeSwap", ["id": id, "name": name, "allowed": false])
             return false
         }
         let size = NSSize(width: CGFloat(img.width) * scale, height: CGFloat(img.height) * scale)
+        // Keep the arts registered as authored: props sharing a canvas (chest
+        // stages) line up by canvas position, not by cropped corner.
         var origin = pl.panel.frame.origin
+        origin.x -= (cropX - pl.cropX) * scale
+        origin.y -= (cropBottom - pl.cropBottom) * scale
         let screen = NSScreen.screens.first { $0.frame.intersects(pl.panel.frame) } ?? NSScreen.main
         if let vis = screen?.visibleFrame {
             origin.x = min(max(origin.x, vis.minX), vis.maxX - size.width)
@@ -467,7 +480,8 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         pl.panel.contentView?.frame = NSRect(origin: .zero, size: size)
         pl.layer.frame = NSRect(origin: .zero, size: size)
         CATransaction.commit()
-        placements[id] = Placement(name: name, panel: pl.panel, layer: pl.layer)
+        placements[id] = Placement(name: name, panel: pl.panel, layer: pl.layer,
+                                   cropX: cropX, cropBottom: cropBottom)
         buddyActivity("placeSwap", ["id": id, "name": name, "allowed": true])
         return true
     }
@@ -941,7 +955,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         // Re-render placed props from the new sheet (body-color change);
         // drop any whose prop no longer exists.
         for (id, pl) in placements {
-            if let raw = sheet.props[pl.name], let img = croppedToVisible(raw) {
+            if let raw = sheet.props[pl.name], let (img, cropX, cropBottom) = croppedToVisible(raw) {
                 let size = NSSize(width: CGFloat(img.width) * scale, height: CGFloat(img.height) * scale)
                 CATransaction.begin()
                 CATransaction.setDisableActions(true)
@@ -950,6 +964,8 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
                 pl.panel.contentView?.frame = NSRect(origin: .zero, size: size)
                 pl.layer.frame = NSRect(origin: .zero, size: size)
                 CATransaction.commit()
+                placements[id] = Placement(name: pl.name, panel: pl.panel, layer: pl.layer,
+                                           cropX: cropX, cropBottom: cropBottom)
             } else {
                 unplace(id)
             }
