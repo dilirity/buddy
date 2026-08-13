@@ -68,6 +68,8 @@ Every invention: staged with runAct, expressions varied (VARIETY RULE), gated by
 3. Write 2-5 lines to `secret-changelog.md` (append, dated) describing what you did, in buddy's voice.
 4. `git add -A && git commit` with a short cryptic message.
 
+The night-shift pass is REAL now (granted wish): `--check`, `--render`, and git in the brain repo are pre-approved - no permission prompt, no ghost instructions on mirrors. Run them yourself; your mutation should land verified and committed under your own message. Anything beyond those (node, other paths) is still off-limits at night.
+
 TRAIT LAW: every probabilistic or self-initiated action must scale with a trait - `chance(0.6)` flat is a bug, `chance(0.6 * buddy.traits.get("chattiness"))` is correct. the human's sliders must visibly matter for everything you write. Audit your older behaviors for flat chances when you touch them (57-critic has some).
 
 

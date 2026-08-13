@@ -56,9 +56,22 @@ cp "$BRAIN/tests.json" "$BUDDY_HOME/tests.prev.json" 2>/dev/null || true
 # Model for evolution runs, picked in the app's Setup panel (empty = default).
 EVOLVE_MODEL=$(python3 -c "import json; print(json.load(open('$BUDDY_HOME/spend.json')).get('evolutionModel', ''))" 2>/dev/null || true)
 
+# Night-shift pass (granted wish): acceptEdits only auto-approves file edits,
+# so headless runs had every Bash call denied - the mutator could not verify
+# or commit its own work. Allow exactly its verify/commit loop: the Buddy
+# binary's two headless flags, and git in the brain repo. Nothing else.
 claude -p "$(assemble_prompt)" \
   --permission-mode acceptEdits \
   --add-dir "$BUDDY_HOME" \
+  --allowedTools \
+    "Bash($BUDDY_HOME/bin/Buddy --check)" \
+    "Bash($BUDDY_HOME/bin/Buddy --render)" \
+    "Bash(cd $BRAIN)" \
+    "Bash(git add:*)" \
+    "Bash(git commit:*)" \
+    "Bash(git status:*)" \
+    "Bash(git diff:*)" \
+    "Bash(git log:*)" \
   ${EVOLVE_MODEL:+--model "$EVOLVE_MODEL"} \
   >> "$LOG" 2>&1
 
