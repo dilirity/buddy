@@ -345,10 +345,33 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
     // never wallpaper the screen.
     private let maxPlacements = 12
 
+    // Props are authored on buddy-sized canvases (worn-overlay alignment),
+    // mostly transparent. A placed prop must occupy only its visible pixels -
+    // for hit-testing and so the art sits exactly where asked.
+    private func croppedToVisible(_ img: CGImage) -> CGImage? {
+        let w = img.width, h = img.height
+        guard let data = img.dataProvider?.data, let ptr = CFDataGetBytePtr(data),
+              img.bitsPerPixel == 32 else { return img }
+        let bpr = img.bytesPerRow
+        var minX = w, minY = h, maxX = -1, maxY = -1
+        for y in 0..<h {
+            for x in 0..<w where ptr[y * bpr + x * 4 + 3] > 0 {
+                if x < minX { minX = x }
+                if x > maxX { maxX = x }
+                if y < minY { minY = y }
+                if y > maxY { maxY = y }
+            }
+        }
+        guard maxX >= minX, maxY >= minY else { return nil }
+        return img.cropping(to: CGRect(x: minX, y: minY,
+                                       width: maxX - minX + 1, height: maxY - minY + 1))
+    }
+
     func place(_ name: String, x: Double, y: Double) -> Int {
         guard !buddyAway, !isFrozen, !evolving,
               x.isFinite, y.isFinite,
-              let img = sheet.props[name],
+              let raw = sheet.props[name],
+              let img = croppedToVisible(raw),
               placements.count < maxPlacements else {
             buddyActivity("place", ["name": name, "allowed": false])
             return 0
@@ -884,10 +907,14 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         // Re-render placed props from the new sheet (body-color change);
         // drop any whose prop no longer exists.
         for (id, pl) in placements {
-            if let img = sheet.props[pl.name] {
+            if let raw = sheet.props[pl.name], let img = croppedToVisible(raw) {
+                let size = NSSize(width: CGFloat(img.width) * scale, height: CGFloat(img.height) * scale)
                 CATransaction.begin()
                 CATransaction.setDisableActions(true)
                 pl.layer.contents = img
+                pl.panel.setContentSize(size)
+                pl.panel.contentView?.frame = NSRect(origin: .zero, size: size)
+                pl.layer.frame = NSRect(origin: .zero, size: size)
                 CATransaction.commit()
             } else {
                 unplace(id)
