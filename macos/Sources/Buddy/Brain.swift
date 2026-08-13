@@ -143,7 +143,7 @@ final class Brain {
         let caps: @convention(block) () -> [String: Bool] = {
             ["cursor": true, "windows": true, "layer": true, "music": true, "glyph": false,
              "think": Spend.load().chatEnabled, "phonePush": true, "feedback": true, "claudeEvents": true,
-             "sfx": true, "place": true, "wear": true]
+             "sfx": true, "place": true, "wear": true, "teleport": true]
         }
         set("caps", caps)
 
@@ -170,6 +170,13 @@ final class Brain {
             self?.controller?.moveTo(NSPoint(x: x, y: y), speed: speed > 0 ? speed : 120)
         }
         set("moveTo", moveTo)
+
+        // Granted wish: instant blink. Emits "arrived" like moveTo so portal
+        // choreography can drop it in where the ghost sprint used to be.
+        let teleportJS: @convention(block) (Double, Double) -> Bool = { [weak self] x, y in
+            self?.controller?.teleport(to: NSPoint(x: x, y: y)) ?? false
+        }
+        set("teleport", teleportJS)
 
         let stop: @convention(block) () -> Void = { [weak self] in
             self?.controller?.stopMoving()

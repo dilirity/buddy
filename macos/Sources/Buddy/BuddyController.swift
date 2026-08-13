@@ -521,6 +521,29 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         }
     }
 
+    // Granted wish: a TRUE instant blink - no visible commute. Emits
+    // "arrived" so acts built on moveTo's until:"arrived" can swap it in.
+    func teleport(to target: NSPoint) -> Bool {
+        guard !held, !isFrozen, !evolving, !buddyAway,
+              target.x.isFinite, target.y.isFinite else {
+            buddyActivity("teleport", ["allowed": false])
+            return false
+        }
+        stopMoving()
+        var t = target
+        let size = panel.frame.size
+        let screen = NSScreen.screens.first { $0.frame.contains(target) } ?? NSScreen.main
+        if let vis = screen?.visibleFrame {
+            t.x = min(max(t.x, vis.minX), vis.maxX - size.width)
+            t.y = min(max(t.y, vis.minY), vis.maxY - size.height)
+        }
+        panel.setFrameOrigin(t)
+        bubble.reposition(near: panel.frame)
+        buddyActivity("teleport", ["x": Double(t.x), "y": Double(t.y), "allowed": true])
+        brain.emit("arrived")
+        return true
+    }
+
     func moveTo(_ target: NSPoint, speed: Double) {
         guard !held, !isFrozen, !evolving, !buddyAway else { return }
         // Clamp so no behavior can walk buddy off screen.
