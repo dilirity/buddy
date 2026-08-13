@@ -143,7 +143,8 @@ final class Brain {
         let caps: @convention(block) () -> [String: Bool] = {
             ["cursor": true, "windows": true, "layer": true, "music": true, "glyph": false,
              "think": Spend.load().chatEnabled, "phonePush": true, "feedback": true, "claudeEvents": true,
-             "sfx": true, "place": true, "wear": true, "teleport": true]
+             "sfx": true, "place": true, "wear": true, "teleport": true,
+             "tweet": Spend.load().tweetsEnabled]
         }
         set("caps", caps)
 
@@ -165,6 +166,15 @@ final class Brain {
             self?.controller?.sfx(name) ?? false
         }
         set("sfx", sfxJS)
+
+        // Granted wish: post to buddy's own X account. The brain supplies
+        // text only; the shell owns the 2/day cap, LLM safety gate, and
+        // credentials. True = accepted into the pipeline (a "tweetPosted" or
+        // "tweetRefused" event follows), false = refused outright.
+        let tweetJS: @convention(block) (String) -> Bool = { [weak self] text in
+            self?.controller?.tweet(text) ?? false
+        }
+        set("tweet", tweetJS)
 
         let moveTo: @convention(block) (Double, Double, Double) -> Void = { [weak self] x, y, speed in
             self?.controller?.moveTo(NSPoint(x: x, y: y), speed: speed > 0 ? speed : 120)

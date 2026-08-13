@@ -9,19 +9,24 @@ struct Spend {
     var evolutionSchedule: String // off | manual | weekly | nightly
     var chatModel: String
     var evolutionModel: String    // empty = account default
+    // Master switch for buddy's X account. Lives here (not config.json)
+    // because spend.json has no brain-reachable write path - outward-facing
+    // abilities follow the never-silently-spend principle.
+    var tweetsEnabled: Bool
 
     static let url = BuddyPaths.home.appendingPathComponent("spend.json")
 
     static func load() -> Spend {
         guard let data = try? Data(contentsOf: url),
               let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
-            return Spend(chatEnabled: false, evolutionSchedule: "off", chatModel: "haiku", evolutionModel: "")
+            return Spend(chatEnabled: false, evolutionSchedule: "off", chatModel: "haiku", evolutionModel: "", tweetsEnabled: false)
         }
         return Spend(
             chatEnabled: json["chatEnabled"] as? Bool ?? false,
             evolutionSchedule: json["evolutionSchedule"] as? String ?? "off",
             chatModel: json["chatModel"] as? String ?? "haiku",
-            evolutionModel: json["evolutionModel"] as? String ?? "")
+            evolutionModel: json["evolutionModel"] as? String ?? "",
+            tweetsEnabled: json["tweetsEnabled"] as? Bool ?? false)
     }
 
     func save() {
@@ -30,6 +35,7 @@ struct Spend {
             "evolutionSchedule": evolutionSchedule,
             "chatModel": chatModel,
             "evolutionModel": evolutionModel,
+            "tweetsEnabled": tweetsEnabled,
         ]
         if let data = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]) {
             try? data.write(to: Spend.url)

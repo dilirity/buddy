@@ -8,6 +8,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
     private var view: SpriteView!
     private var bubble = SpeechBubble()
     let brain = Brain()
+    private let tweeter = Tweeter()
     private let senses = Senses()
     var coordination: Coordination!
     // Read fresh on every use so settings-window changes apply immediately.
@@ -96,6 +97,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         setupStatusItem()
 
         brain.controller = self
+        tweeter.controller = self
         brain.reload()
         senses.controller = self
         senses.start()
@@ -1098,6 +1100,11 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
     // whatever the human installed in ~/.buddy/sounds - the brain can name
     // sounds but never add them. Spends disruption budget like any noise.
     private var currentSfx: NSSound?
+
+    // Granted wish: buddy's X account. All safety lives in Tweeter.
+    func tweet(_ text: String) -> Bool {
+        tweeter.request(text)
+    }
 
     func sfx(_ name: String) -> Bool {
         guard !buddyAway,
