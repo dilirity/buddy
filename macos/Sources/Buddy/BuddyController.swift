@@ -303,6 +303,42 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         let panel: BuddyPanel
         let layer: CALayer
     }
+
+    // Granted wish (round two): placed props answer the mouse. A click pokes,
+    // a drag relocates - the human can rearrange the hoard by hand. The brain
+    // hears both, so it can persist new spots to memory.
+    private final class PlacedPropView: NSView {
+        var onPoke: (() -> Void)?
+        var onMoved: ((NSPoint) -> Void)?
+        private var dragging = false
+        private var downPoint: NSPoint = .zero
+
+        override func mouseDown(with event: NSEvent) {
+            dragging = false
+            downPoint = event.locationInWindow
+        }
+
+        override func mouseDragged(with event: NSEvent) {
+            guard let w = window else { return }
+            if !dragging {
+                let d = hypot(event.locationInWindow.x - downPoint.x,
+                              event.locationInWindow.y - downPoint.y)
+                if d < 4 { return }
+                dragging = true
+            }
+            let m = NSEvent.mouseLocation
+            w.setFrameOrigin(NSPoint(x: m.x - downPoint.x, y: m.y - downPoint.y))
+        }
+
+        override func mouseUp(with event: NSEvent) {
+            if dragging {
+                onMoved?(window?.frame.origin ?? .zero)
+            } else {
+                onPoke?()
+            }
+            dragging = false
+        }
+    }
     private var placements: [Int: Placement] = [:]
     private var nextPlacementId = 1
     // Above the hoard cap (10) but low enough that a runaway mutation can
@@ -325,8 +361,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
             origin.y = min(max(origin.y, vis.minY), vis.maxY - size.height)
         }
         let p = BuddyPanel(size: size)
-        p.ignoresMouseEvents = true
-        let holder = NSView(frame: NSRect(origin: .zero, size: size))
+        let holder = PlacedPropView(frame: NSRect(origin: .zero, size: size))
         holder.wantsLayer = true
         let l = CALayer()
         l.magnificationFilter = .nearest
@@ -339,10 +374,45 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         p.orderFrontRegardless()
         let id = nextPlacementId
         nextPlacementId += 1
+        holder.onPoke = { [weak self] in
+            guard let self, !self.evolving, !self.buddyAway else { return }
+            buddyActivity("placementPoked", ["id": id, "name": name])
+            self.brain.emit("placementPoked", ["id": id, "name": name])
+        }
+        holder.onMoved = { [weak self] newOrigin in
+            guard let self, self.placements[id] != nil else { return }
+            // Human's drag can end anywhere - clamp back on screen like place().
+            var o = newOrigin
+            let scr = NSScreen.screens.first { $0.frame.intersects(NSRect(origin: o, size: size)) } ?? NSScreen.main
+            if let vis = scr?.visibleFrame {
+                o.x = min(max(o.x, vis.minX), vis.maxX - size.width)
+                o.y = min(max(o.y, vis.minY), vis.maxY - size.height)
+            }
+            self.placements[id]?.panel.setFrameOrigin(o)
+            buddyActivity("placementMoved", ["id": id, "name": name, "x": Double(o.x), "y": Double(o.y)])
+            self.brain.emit("placementMoved", ["id": id, "name": name, "x": Double(o.x), "y": Double(o.y)])
+        }
         placements[id] = Placement(name: name, panel: p, layer: l)
         buddyActivity("place", ["name": name, "x": Double(origin.x), "y": Double(origin.y),
                                 "id": id, "allowed": true])
         return id
+    }
+
+    // Brain-driven relocation of a placed prop (carry choreography, tidying).
+    // Same guards as place(); clamped the same way.
+    func placeMove(_ id: Int, x: Double, y: Double) -> Bool {
+        guard !buddyAway, !isFrozen, !evolving,
+              x.isFinite, y.isFinite,
+              let pl = placements[id] else { return false }
+        let size = pl.panel.frame.size
+        var origin = NSPoint(x: x, y: y)
+        let screen = NSScreen.screens.first { $0.frame.contains(origin) } ?? NSScreen.main
+        if let vis = screen?.visibleFrame {
+            origin.x = min(max(origin.x, vis.minX), vis.maxX - size.width)
+            origin.y = min(max(origin.y, vis.minY), vis.maxY - size.height)
+        }
+        pl.panel.setFrameOrigin(origin)
+        return true
     }
 
     func unplace(_ id: Int) {

@@ -319,6 +319,15 @@ final class Brain {
         }
         set("unplace", unplaceJS)
 
+        // placeMove(id, x, y) relocates a placed prop (returns false when
+        // refused/unknown). The human can also drag placements by hand - those
+        // drags emit "placementMoved", clicks emit "placementPoked"; the
+        // brain's own placeMove calls do not echo back.
+        let placeMoveJS: @convention(block) (Int, Double, Double) -> Bool = { [weak self] id, x, y in
+            self?.controller?.placeMove(id, x: x, y: y) ?? false
+        }
+        set("placeMove", placeMoveJS)
+
         // buddy.prop("glasses") dons an accessory from sprites.json props;
         // buddy.prop(null) removes it.
         let propJS: @convention(block) (JSValue) -> Void = { [weak self] v in
