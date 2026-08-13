@@ -328,6 +328,13 @@ final class Brain {
         }
         set("placeMove", placeMoveJS)
 
+        // placeSwap(id, propName) swaps a placement's art in place - no
+        // unplace/place blink. Returns false when refused or unknown.
+        let placeSwapJS: @convention(block) (Int, String) -> Bool = { [weak self] id, name in
+            self?.controller?.placeSwap(id, to: name) ?? false
+        }
+        set("placeSwap", placeSwapJS)
+
         // buddy.prop("glasses") dons an accessory from sprites.json props;
         // buddy.prop(null) removes it.
         let propJS: @convention(block) (JSValue) -> Void = { [weak self] v in

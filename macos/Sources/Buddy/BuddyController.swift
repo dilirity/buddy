@@ -398,22 +398,26 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         let id = nextPlacementId
         nextPlacementId += 1
         holder.onPoke = { [weak self] in
-            guard let self, !self.evolving, !self.buddyAway else { return }
-            buddyActivity("placementPoked", ["id": id, "name": name])
-            self.brain.emit("placementPoked", ["id": id, "name": name])
+            guard let self, !self.evolving, !self.buddyAway,
+                  // Look up live: placeSwap may have renamed this placement.
+                  let current = self.placements[id]?.name else { return }
+            buddyActivity("placementPoked", ["id": id, "name": current])
+            self.brain.emit("placementPoked", ["id": id, "name": current])
         }
         holder.onMoved = { [weak self] newOrigin in
-            guard let self, self.placements[id] != nil else { return }
-            // Human's drag can end anywhere - clamp back on screen like place().
+            guard let self, let pl = self.placements[id] else { return }
+            // Human's drag can end anywhere - clamp back on screen like
+            // place(). Size and name read live: placeSwap may have changed both.
             var o = newOrigin
-            let scr = NSScreen.screens.first { $0.frame.intersects(NSRect(origin: o, size: size)) } ?? NSScreen.main
+            let sz = pl.panel.frame.size
+            let scr = NSScreen.screens.first { $0.frame.intersects(NSRect(origin: o, size: sz)) } ?? NSScreen.main
             if let vis = scr?.visibleFrame {
-                o.x = min(max(o.x, vis.minX), vis.maxX - size.width)
-                o.y = min(max(o.y, vis.minY), vis.maxY - size.height)
+                o.x = min(max(o.x, vis.minX), vis.maxX - sz.width)
+                o.y = min(max(o.y, vis.minY), vis.maxY - sz.height)
             }
-            self.placements[id]?.panel.setFrameOrigin(o)
-            buddyActivity("placementMoved", ["id": id, "name": name, "x": Double(o.x), "y": Double(o.y)])
-            self.brain.emit("placementMoved", ["id": id, "name": name, "x": Double(o.x), "y": Double(o.y)])
+            pl.panel.setFrameOrigin(o)
+            buddyActivity("placementMoved", ["id": id, "name": pl.name, "x": Double(o.x), "y": Double(o.y)])
+            self.brain.emit("placementMoved", ["id": id, "name": pl.name, "x": Double(o.x), "y": Double(o.y)])
         }
         placements[id] = Placement(name: name, panel: p, layer: l)
         buddyActivity("place", ["name": name, "x": Double(origin.x), "y": Double(origin.y),
@@ -435,6 +439,36 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
             origin.y = min(max(origin.y, vis.minY), vis.maxY - size.height)
         }
         pl.panel.setFrameOrigin(origin)
+        return true
+    }
+
+    // Granted wish: atomic art swap on a placement - a chest hinge must not
+    // blink through an unplace/place pair. Origin stays put; the panel
+    // resizes to the new art and re-clamps in case it grew past an edge.
+    func placeSwap(_ id: Int, to name: String) -> Bool {
+        guard !buddyAway, !isFrozen, !evolving,
+              let pl = placements[id],
+              let raw = sheet.props[name],
+              let img = croppedToVisible(raw) else {
+            buddyActivity("placeSwap", ["id": id, "name": name, "allowed": false])
+            return false
+        }
+        let size = NSSize(width: CGFloat(img.width) * scale, height: CGFloat(img.height) * scale)
+        var origin = pl.panel.frame.origin
+        let screen = NSScreen.screens.first { $0.frame.intersects(pl.panel.frame) } ?? NSScreen.main
+        if let vis = screen?.visibleFrame {
+            origin.x = min(max(origin.x, vis.minX), vis.maxX - size.width)
+            origin.y = min(max(origin.y, vis.minY), vis.maxY - size.height)
+        }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        pl.layer.contents = img
+        pl.panel.setFrame(NSRect(origin: origin, size: size), display: true)
+        pl.panel.contentView?.frame = NSRect(origin: .zero, size: size)
+        pl.layer.frame = NSRect(origin: .zero, size: size)
+        CATransaction.commit()
+        placements[id] = Placement(name: name, panel: pl.panel, layer: pl.layer)
+        buddyActivity("placeSwap", ["id": id, "name": name, "allowed": true])
         return true
     }
 
