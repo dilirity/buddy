@@ -143,7 +143,7 @@ final class Brain {
         let caps: @convention(block) () -> [String: Bool] = {
             ["cursor": true, "windows": true, "layer": true, "music": true, "glyph": false,
              "think": Spend.load().chatEnabled, "phonePush": true, "feedback": true, "claudeEvents": true,
-             "sfx": true, "place": true, "wear": true, "teleport": true,
+             "sfx": true, "place": true, "wear": true, "teleport": true, "placeAnim": true,
              "tweet": Spend.load().tweetsEnabled]
         }
         set("caps", caps)
@@ -351,6 +351,21 @@ final class Brain {
             self?.controller?.placeSwap(id, to: name) ?? false
         }
         set("placeSwap", placeSwapJS)
+
+        // placeBlink(id, propName, ms?) is a self-reverting placeSwap: the
+        // shell flips the art back on its own, so one call makes a flutter.
+        // placeBounce(id) is a one-shot hop-in-place. Both return false when
+        // refused - placed creatures must survive staying still.
+        let placeBlinkJS: @convention(block) (Int, String, JSValue) -> Bool = { [weak self] id, name, ms in
+            let hold = ms.isNumber ? ms.toDouble() : 140
+            return self?.controller?.placeBlink(id, to: name, ms: hold) ?? false
+        }
+        set("placeBlink", placeBlinkJS)
+
+        let placeBounceJS: @convention(block) (Int) -> Bool = { [weak self] id in
+            self?.controller?.placeBounce(id) ?? false
+        }
+        set("placeBounce", placeBounceJS)
 
         // wear(slot, name) - persistent accessory in a named slot ("hand" or
         // "head"), independent of speech: unlike a say() prop it survives the

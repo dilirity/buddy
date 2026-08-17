@@ -473,11 +473,26 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
     // blink through an unplace/place pair. Origin stays put; the panel
     // resizes to the new art and re-clamps in case it grew past an edge.
     func placeSwap(_ id: Int, to name: String) -> Bool {
-        guard !buddyAway, !isFrozen, !evolving,
-              let pl = placements[id],
+        guard !buddyAway, !isFrozen, !evolving else {
+            buddyActivity("placeSwap", ["id": id, "name": name, "allowed": false])
+            return false
+        }
+        // A deliberate swap is the new truth - cancel any pending blink
+        // revert so it cannot stomp the brain's art moments later.
+        blinkTokens[id] = nil
+        blinkBase[id] = nil
+        let ok = applySwap(id, to: name)
+        buddyActivity("placeSwap", ["id": id, "name": name, "allowed": ok])
+        return ok
+    }
+
+    // Swap mechanics without the away/frozen/evolving guards: blink reverts
+    // must land even if buddy freezes mid-flutter, or the alternate art
+    // sticks. Callers own logging and state policy.
+    private func applySwap(_ id: Int, to name: String) -> Bool {
+        guard let pl = placements[id],
               let raw = sheet.props[name],
               let (img, cropX, cropBottom) = croppedToVisible(raw) else {
-            buddyActivity("placeSwap", ["id": id, "name": name, "allowed": false])
             return false
         }
         let size = NSSize(width: CGFloat(img.width) * scale, height: CGFloat(img.height) * scale)
@@ -500,13 +515,82 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         CATransaction.commit()
         placements[id] = Placement(name: name, panel: pl.panel, layer: pl.layer,
                                    cropX: cropX, cropBottom: cropBottom)
-        buddyActivity("placeSwap", ["id": id, "name": name, "allowed": true])
+        return true
+    }
+
+    // Granted wish (pet night): a self-reverting flutter. The placement wears
+    // the alternate art briefly, then the shell flips it back on its own - one
+    // call from the brain, and a rock can blink without juggling timers.
+    private var blinkTokens: [Int: Int] = [:]
+    private var blinkBase: [Int: String] = [:]
+    private var blinkSeq = 0
+
+    func placeBlink(_ id: Int, to name: String, ms: Double) -> Bool {
+        // Base art resolves through an active blink, so a re-blink mid-flutter
+        // still reverts to the true resting art, not to the blink frame.
+        let base = blinkBase[id] ?? placements[id]?.name
+        guard let base, placeSwap(id, to: name) else {
+            buddyActivity("placeBlink", ["id": id, "name": name, "allowed": false])
+            return false
+        }
+        let hold = min(max(ms.isFinite ? ms : 140, 60), 2000)
+        blinkSeq += 1
+        let token = blinkSeq
+        blinkTokens[id] = token
+        blinkBase[id] = base
+        DispatchQueue.main.asyncAfter(deadline: .now() + hold / 1000) { [weak self] in
+            guard let self, self.blinkTokens[id] == token else { return }
+            self.blinkTokens[id] = nil
+            self.blinkBase[id] = nil
+            // Revert only while the blink art is still up - a swap or unplace
+            // that slipped past the token check owns the placement now.
+            guard self.placements[id]?.name == name else { return }
+            _ = self.applySwap(id, to: base)
+        }
+        buddyActivity("placeBlink", ["id": id, "name": name, "ms": hold, "allowed": true])
+        return true
+    }
+
+    // Granted wish (pet night): a one-shot jiggle so a poked rock can visibly
+    // take the poke. Small hop up and back, landing exactly where it sat; a
+    // human drag or brain placeMove mid-hop wins and aborts the rest.
+    private var bouncing: Set<Int> = []
+
+    func placeBounce(_ id: Int) -> Bool {
+        guard !buddyAway, !isFrozen, !evolving,
+              let pl = placements[id], !bouncing.contains(id) else {
+            buddyActivity("placeBounce", ["id": id, "allowed": false])
+            return false
+        }
+        bouncing.insert(id)
+        let base = pl.panel.frame.origin
+        var expected = base
+        let hops: [(delayMs: Double, dy: CGFloat)] = [(0, 3), (60, 5), (120, 2), (180, 0)]
+        for hop in hops {
+            let last = hop.dy == 0
+            DispatchQueue.main.asyncAfter(deadline: .now() + hop.delayMs / 1000) { [weak self] in
+                guard let self else { return }
+                if last { self.bouncing.remove(id) }
+                guard let pl = self.placements[id], self.bouncing.contains(id) || last,
+                      pl.panel.frame.origin == expected else {
+                    self.bouncing.remove(id)
+                    return
+                }
+                let next = NSPoint(x: base.x, y: base.y + hop.dy * self.scale)
+                pl.panel.setFrameOrigin(next)
+                expected = next
+            }
+        }
+        buddyActivity("placeBounce", ["id": id, "allowed": true])
         return true
     }
 
     func unplace(_ id: Int) {
         guard let pl = placements.removeValue(forKey: id) else { return }
         pl.panel.orderOut(nil)
+        blinkTokens[id] = nil
+        blinkBase[id] = nil
+        bouncing.remove(id)
         buddyActivity("unplace", ["id": id])
     }
 
@@ -514,6 +598,9 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
         guard !placements.isEmpty else { return }
         for pl in placements.values { pl.panel.orderOut(nil) }
         placements.removeAll()
+        blinkTokens.removeAll()
+        blinkBase.removeAll()
+        bouncing.removeAll()
         buddyActivity("unplaceAll")
     }
 
