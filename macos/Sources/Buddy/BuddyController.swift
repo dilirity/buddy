@@ -48,6 +48,7 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
     private var devicesItem: NSMenuItem?
     private var evolveItem: NSMenuItem?
     private var evolveProcess: Process?
+    private var evolvePending = false
     private var evolveStartSignature = ""
     private var externalEvolveActive = false
 
@@ -1371,36 +1372,48 @@ final class BuddyController: NSObject, SpriteViewDelegate, NSMenuDelegate {
     @objc private func menuEvolveNow() { runEvolve() }
 
     func runEvolve() {
-        guard evolveProcess == nil else { return }
+        guard evolveProcess == nil, !evolvePending else { return }
         let script = BuddyPaths.home.appendingPathComponent("mutator/run.sh")
         guard FileManager.default.fileExists(atPath: script.path) else {
             say("no mutator installed. run setup.sh first", seconds: 5)
             return
         }
+        // Tell the brain first and hold the mutator for a beat: its ritual
+        // walks buddy to a corner, and moveTo is refused once `evolving`
+        // flips true. The grace outlasts the brain's own 7s begin-fallback,
+        // so the commute finishes while movement is still allowed.
+        evolvePending = true
         evolveStartSignature = Senses.currentBrainSignature()
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/bin/bash")
-        p.arguments = [script.path]
-        p.terminationHandler = { [weak self] _ in
-            DispatchQueue.main.async { self?.evolveFinished() }
-        }
-        do {
-            try p.run()
-        } catch {
-            buddyLog("evolve: failed to launch: \(error)")
-            say("evolution failed to start. embarrassing.", seconds: 5)
-            return
-        }
-        evolveProcess = p
         beginEvolveUI()
         buddyActivity("evolveStart")
-        buddyLog("evolution started")
+        buddyLog("evolution starting (stage-clear grace)")
         brain.emit("evolveStart")
-        // A hung mutation must not pin the menu on "Evolving…" forever.
-        commonTimer(900, repeats: false) { [weak self] _ in
-            guard let self, let running = self.evolveProcess, running === p else { return }
-            buddyLog("evolution timed out, terminating")
-            running.terminate()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [weak self] in
+            guard let self, self.evolvePending else { return }
+            self.evolvePending = false
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: "/bin/bash")
+            p.arguments = [script.path]
+            p.terminationHandler = { [weak self] _ in
+                DispatchQueue.main.async { self?.evolveFinished() }
+            }
+            do {
+                try p.run()
+            } catch {
+                buddyLog("evolve: failed to launch: \(error)")
+                self.say("evolution failed to start. embarrassing.", seconds: 5)
+                // The brain already entered its ritual - unwind it properly.
+                self.evolveFinished()
+                return
+            }
+            self.evolveProcess = p
+            buddyLog("evolution started")
+            // A hung mutation must not pin the menu on "Evolving…" forever.
+            commonTimer(900, repeats: false) { [weak self] _ in
+                guard let self, let running = self.evolveProcess, running === p else { return }
+                buddyLog("evolution timed out, terminating")
+                running.terminate()
+            }
         }
     }
 
